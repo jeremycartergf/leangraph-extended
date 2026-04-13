@@ -10,6 +10,7 @@
  */
 
 import { writeFileSync, existsSync, readFileSync } from "fs";
+import * as path from "path";
 import { Neo4jClient } from "./neo4j-client.js";
 import { LeangraphClient } from "./leangraph-client.js";
 import { QueryGenerator, Feature } from "./query-generator.js";
@@ -231,7 +232,8 @@ async function main(): Promise<void> {
 
   // Load existing failures if appending
   let existingFailures: ComparisonResult[] = [];
-  const outputPath = new URL("./failures.json", import.meta.url).pathname;
+  const scriptDir = process.argv[1] ? path.dirname(path.resolve(process.argv[1])) : process.cwd();
+  const outputPath = path.join(scriptDir, "failures.json");
 
   if (options.append && existsSync(outputPath)) {
     try {

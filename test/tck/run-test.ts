@@ -15,7 +15,6 @@
  */
 
 import * as path from "path";
-import { fileURLToPath } from "url";
 import { GraphDatabase } from "../../src/db";
 import { Executor } from "../../src/executor";
 import { parseAllFeatures, TCKScenario } from "./tck-parser";
@@ -23,9 +22,8 @@ import { FAILING_TESTS } from "./failing-tests";
 import { QUERY_OVERRIDES } from "./query-overrides";
 import { valuesMatch, extractColumns, rowsMatch } from "./tck-utils";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const TCK_PATH = path.join(__dirname, "openCypher/tck/features");
+const scriptDir = process.argv[1] ? path.dirname(path.resolve(process.argv[1])) : process.cwd();
+const TCK_PATH = path.join(scriptDir, "openCypher/tck/features");
 
 // Parse command line args
 const args = process.argv.slice(2);

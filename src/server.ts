@@ -1,5 +1,7 @@
 // LeanGraph Server - Entry Point
 
+import { createServer as createLeanGraphServer } from "./routes.js";
+
 export { parse } from "./parser.js";
 export type {
   Query,
@@ -41,15 +43,12 @@ export type { ApiKeyConfig, ValidationResult, KeyInfo } from "./auth.js";
 
 export const VERSION = "0.1.0";
 
-// If this file is run directly, start the server
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const { serve } = await import("@hono/node-server");
-  const { createServer } = await import("./routes");
-
+function startServer(): void {
+  const { serve } = require("@hono/node-server") as typeof import("@hono/node-server");
   const port = parseInt(process.env.PORT || "3000", 10);
   const dataPath = process.env.LEANGRAPH_DATA_PATH || "./data";
 
-  const { app, dbManager } = createServer({ port, dataPath });
+  const { app } = createLeanGraphServer({ port, dataPath });
 
   console.log(`LeanGraph Server v${VERSION}`);
   console.log(`Starting on http://localhost:${port}`);
@@ -59,4 +58,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     fetch: app.fetch,
     port,
   });
+}
+
+// If this file is run directly, start the server
+if (require.main === module) {
+  startServer();
 }

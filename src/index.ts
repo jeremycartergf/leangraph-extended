@@ -1,12 +1,9 @@
 // LeanGraph - Unified Package
 // A lightweight graph database with Cypher query support, powered by SQLite.
 
-import { createRequire } from "module";
 import { createRemoteClient } from "./remote.js";
 import type { LeanGraphOptions, LeanGraphClient } from "./types.js";
-
-const require = createRequire(import.meta.url);
-const pkg = require("../package.json");
+import pkg from "../package.json";
 
 // ============================================================================
 // Re-export Types

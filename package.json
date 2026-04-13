@@ -1,8 +1,8 @@
 {
-  "name": "leangraph",
-  "version": "1.2.2",
-  "description": "SQLite-based graph database with Cypher query support",
-  "type": "module",
+  "name": "leangraph-extended",
+  "version": "1.0.0",
+  "description": "SQLite-based graph database with Cypher query support with some APOC extensions",
+  "type": "commonjs",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
@@ -11,6 +11,7 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     }
@@ -23,20 +24,23 @@
   "scripts": {
     "prepare": "husky",
     "build": "tsc",
+    "prepack": "npm run build",
     "test": "vitest run",
     "test:remote": "./scripts/test-remote.sh",
     "test:all": "npm test && npm run test:remote",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "dev": "tsx watch src/server.ts",
-    "tck": "node --import tsx test/tck/run-test.ts",
-    "tck:failing": "node --import tsx test/tck/list-failing-tests.ts",
+    "tck": "tsx test/tck/run-test.ts",
+    "tck:failing": "tsx test/tck/list-failing-tests.ts",
     "tck:check-fixed": "TCK_TEST_ALL=1 npm test 2>&1 | grep -A 50 'from FAILING_TESTS that now PASS'",
     "prepublishOnly": "npm run build",
-    "benchmark": "node --import tsx benchmark/src/run.ts",
-    "benchmark:report": "node --import tsx benchmark/src/report.ts",
-    "benchmark:compare": "node --import tsx benchmark/src/compare.ts",
-    "benchmark:analyze": "node --import tsx benchmark/src/analyze.ts",
+    "release:check": "npm run build && npm publish --dry-run",
+    "release:pack": "npm pack --dry-run",
+    "benchmark": "tsx benchmark/src/run.ts",
+    "benchmark:report": "tsx benchmark/src/report.ts",
+    "benchmark:compare": "tsx benchmark/src/compare.ts",
+    "benchmark:analyze": "tsx benchmark/src/analyze.ts",
     "fuzz:docker": "docker compose -f test/fuzzing/docker-compose.yml up -d",
     "fuzz:run": "npx tsx test/fuzzing/runner.ts",
     "fuzz:stop": "docker compose -f test/fuzzing/docker-compose.yml down"

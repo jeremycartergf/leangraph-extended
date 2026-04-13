@@ -1,9 +1,6 @@
 // Database Wrapper for SQLite
 
 import * as nodePath from "path";
-import { createRequire } from "module";
-
-const require = createRequire(import.meta.url);
 
 // Lazy-loaded better-sqlite3 to avoid requiring it in remote mode
 let BetterSqlite3: any = null;
