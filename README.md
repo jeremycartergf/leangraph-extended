@@ -6,22 +6,25 @@
 
 A lightweight, embeddable graph database with **full Cypher query support**, powered by SQLite.
 
+Extended edition includes APOC functions.
+
 > **100% openCypher TCK Compliance** — LeanGraph passes all 2,684 test scenarios from the openCypher Technology Compatibility Kit (Neo4j 3.5 baseline). Every Cypher feature that Neo4j 3.5 supports, LeanGraph supports.
 
 ## Why LeanGraph?
 
-| Feature | LeanGraph | Neo4j |
-|---------|-----------|-------|
-| **Startup time** | Instant | 30+ seconds |
-| **Memory** | ~50MB | 1GB+ minimum |
-| **Deployment** | Single npm package | JVM + complex setup |
-| **Docker required** | No | Typically yes |
-| **Works offline** | Yes | Server required |
-| **Backup** | Copy the SQLite file | Enterprise license |
-| **Cypher support** | Full (Neo4j 3.5 parity) | Full |
-| **Cost** | Free, MIT license | Free tier limited |
+| Feature             | LeanGraph               | Neo4j               |
+| ------------------- | ----------------------- | ------------------- |
+| **Startup time**    | Instant                 | 30+ seconds         |
+| **Memory**          | ~50MB                   | 1GB+ minimum        |
+| **Deployment**      | Single npm package      | JVM + complex setup |
+| **Docker required** | No                      | Typically yes       |
+| **Works offline**   | Yes                     | Server required     |
+| **Backup**          | Copy the SQLite file    | Enterprise license  |
+| **Cypher support**  | Full (Neo4j 3.5 parity) | Full                |
+| **Cost**            | Free, MIT license       | Free tier limited   |
 
 LeanGraph is ideal for:
+
 - Production graph workloads with zero infrastructure
 - Neo4j-level queries without Neo4j-level complexity
 - Self-hosted apps where simplicity is a feature
@@ -39,9 +42,9 @@ npm install -D better-sqlite3
 ## Quick Start
 
 ```typescript
-import { LeanGraph } from 'leangraph';
+import { LeanGraph } from "leangraph";
 
-const db = await LeanGraph({ project: 'myapp' });
+const db = await LeanGraph({ project: "myapp" });
 
 // Create nodes and relationships
 await db.execute(`
@@ -49,7 +52,7 @@ await db.execute(`
 `);
 
 // Query the graph
-const users = await db.query('MATCH (u:User) RETURN u.name AS name');
+const users = await db.query("MATCH (u:User) RETURN u.name AS name");
 console.log(users); // [{ name: 'Alice' }, { name: 'Bob' }]
 
 db.close();
@@ -57,18 +60,18 @@ db.close();
 
 ## Modes
 
-| Mode | `LEANGRAPH_MODE` | Behavior |
-|------|------------------|----------|
-| **Local** | unset or `local` | Embedded SQLite at `./data/{project}.db` |
-| **Remote** | `remote` | HTTP connection to LeanGraph server |
-| **Test** | `test` | In-memory SQLite (resets on restart) |
+| Mode       | `LEANGRAPH_MODE` | Behavior                                 |
+| ---------- | ---------------- | ---------------------------------------- |
+| **Local**  | unset or `local` | Embedded SQLite at `./data/{project}.db` |
+| **Remote** | `remote`         | HTTP connection to LeanGraph server      |
+| **Test**   | `test`           | In-memory SQLite (resets on restart)     |
 
 ### Local Mode (default)
 
 Uses an embedded SQLite database. No server required.
 
 ```typescript
-const db = await LeanGraph({ project: 'myapp' });
+const db = await LeanGraph({ project: "myapp" });
 // Data persists at ./data/myapp.db
 ```
 
@@ -77,6 +80,7 @@ const db = await LeanGraph({ project: 'myapp' });
 Your code can stay identical for local development and production. Just configure environment variables:
 
 **.env**
+
 ```bash
 LEANGRAPH_MODE=remote
 LEANGRAPH_API_KEY=lg_xxx
@@ -84,7 +88,7 @@ LEANGRAPH_API_KEY=lg_xxx
 
 ```typescript
 // Same code works locally (dev) and remotely (production)
-const db = await LeanGraph({ project: 'myapp' });
+const db = await LeanGraph({ project: "myapp" });
 ```
 
 When `LEANGRAPH_MODE=remote` is set, LeanGraph automatically connects via HTTP instead of embedded LeanGraph.
@@ -96,7 +100,7 @@ When `LEANGRAPH_MODE=remote` is set, LeanGraph automatically connects via HTTP i
 Uses an in-memory SQLite database that resets when the process exits.
 
 ```typescript
-const db = await LeanGraph({ mode: 'test', project: 'myapp' });
+const db = await LeanGraph({ mode: "test", project: "myapp" });
 ```
 
 ## Configuration
@@ -111,13 +115,13 @@ interface LeanGraphOptions {
 }
 ```
 
-| Option | Environment Variable | Default | Description |
-|--------|---------------------|---------|-------------|
-| `mode` | `LEANGRAPH_MODE` | `"local"` | `local`, `remote`, or `test` |
-| `project` | `LEANGRAPH_PROJECT` | — | Project name (required) |
-| `url` | `LEANGRAPH_URL` | `"https://leangraph.io"` | Server URL (remote mode) |
-| `apiKey` | `LEANGRAPH_API_KEY` | — | API key (remote mode) |
-| `dataPath` | `LEANGRAPH_DATA_PATH` | `"./data"` | Data directory (local mode) |
+| Option     | Environment Variable  | Default                  | Description                  |
+| ---------- | --------------------- | ------------------------ | ---------------------------- |
+| `mode`     | `LEANGRAPH_MODE`      | `"local"`                | `local`, `remote`, or `test` |
+| `project`  | `LEANGRAPH_PROJECT`   | —                        | Project name (required)      |
+| `url`      | `LEANGRAPH_URL`       | `"https://leangraph.io"` | Server URL (remote mode)     |
+| `apiKey`   | `LEANGRAPH_API_KEY`   | —                        | API key (remote mode)        |
+| `dataPath` | `LEANGRAPH_DATA_PATH` | `"./data"`               | Data directory (local mode)  |
 
 Options passed to `LeanGraph()` take precedence over environment variables.
 
@@ -133,8 +137,8 @@ Execute a Cypher query and return results as an array.
 
 ```typescript
 const users = await db.query<{ name: string; age: number }>(
-  'MATCH (u:User) WHERE u.age > $minAge RETURN u.name AS name, u.age AS age',
-  { minAge: 21 }
+  "MATCH (u:User) WHERE u.age > $minAge RETURN u.name AS name, u.age AS age",
+  { minAge: 21 },
 );
 // users = [{ name: 'Alice', age: 25 }, { name: 'Bob', age: 30 }]
 ```
@@ -144,9 +148,9 @@ const users = await db.query<{ name: string; age: number }>(
 Execute a mutating query (CREATE, SET, DELETE, MERGE) without expecting return data.
 
 ```typescript
-await db.execute('CREATE (n:User {name: $name, email: $email})', {
-  name: 'Alice',
-  email: 'alice@example.com'
+await db.execute("CREATE (n:User {name: $name, email: $email})", {
+  name: "Alice",
+  email: "alice@example.com",
 });
 ```
 
@@ -155,10 +159,10 @@ await db.execute('CREATE (n:User {name: $name, email: $email})', {
 Execute a query and return the full response including metadata.
 
 ```typescript
-const response = await db.queryRaw('MATCH (n) RETURN n LIMIT 10');
-console.log(response.meta.count);   // Number of rows
+const response = await db.queryRaw("MATCH (n) RETURN n LIMIT 10");
+console.log(response.meta.count); // Number of rows
 console.log(response.meta.time_ms); // Query execution time in ms
-console.log(response.data);         // Array of results
+console.log(response.data); // Array of results
 ```
 
 ### Convenience Methods
@@ -196,28 +200,26 @@ try {
 
 ```typescript
 // Create
-await db.execute(
-  'CREATE (u:User {name: $name, email: $email})',
-  { name: 'Alice', email: 'alice@example.com' }
-);
+await db.execute("CREATE (u:User {name: $name, email: $email})", {
+  name: "Alice",
+  email: "alice@example.com",
+});
 
 // Read
 const [user] = await db.query<{ name: string; email: string }>(
-  'MATCH (u:User {email: $email}) RETURN u.name AS name, u.email AS email',
-  { email: 'alice@example.com' }
+  "MATCH (u:User {email: $email}) RETURN u.name AS name, u.email AS email",
+  { email: "alice@example.com" },
 );
 
 // Update
-await db.execute(
-  'MATCH (u:User {email: $email}) SET u.verified = true',
-  { email: 'alice@example.com' }
-);
+await db.execute("MATCH (u:User {email: $email}) SET u.verified = true", {
+  email: "alice@example.com",
+});
 
 // Delete
-await db.execute(
-  'MATCH (u:User {email: $email}) DETACH DELETE u',
-  { email: 'alice@example.com' }
-);
+await db.execute("MATCH (u:User {email: $email}) DETACH DELETE u", {
+  email: "alice@example.com",
+});
 ```
 
 ### Parameterized Queries
@@ -226,13 +228,14 @@ Always use parameters for user input:
 
 ```typescript
 // Good - parameterized
-const users = await db.query(
-  'MATCH (u:User) WHERE u.email = $email RETURN u',
-  { email: userInput }
-);
+const users = await db.query("MATCH (u:User) WHERE u.email = $email RETURN u", {
+  email: userInput,
+});
 
 // Bad - string interpolation (injection risk)
-const users = await db.query(`MATCH (u:User) WHERE u.email = '${userInput}' RETURN u`);
+const users = await db.query(
+  `MATCH (u:User) WHERE u.email = '${userInput}' RETURN u`,
+);
 ```
 
 ### Typed Results
@@ -244,65 +247,80 @@ interface User {
 }
 
 const users = await db.query<User>(
-  'MATCH (u:User) RETURN u.name AS name, u.email AS email'
+  "MATCH (u:User) RETURN u.name AS name, u.email AS email",
 );
 
-users[0].name;  // TypeScript knows this is string
+users[0].name; // TypeScript knows this is string
 ```
 
 ### Relationships
 
 ```typescript
 // Create a relationship
-await db.execute(`
+await db.execute(
+  `
   MATCH (a:User {name: $from}), (b:User {name: $to})
   CREATE (a)-[:FOLLOWS {since: $since}]->(b)
-`, { from: 'Alice', to: 'Bob', since: '2024-01-01' });
+`,
+  { from: "Alice", to: "Bob", since: "2024-01-01" },
+);
 
 // Query relationships
-const following = await db.query<{ name: string }>(`
+const following = await db.query<{ name: string }>(
+  `
   MATCH (:User {name: $name})-[:FOLLOWS]->(friend:User)
   RETURN friend.name AS name
-`, { name: 'Alice' });
+`,
+  { name: "Alice" },
+);
 
 // Variable-length paths (1-3 hops)
-const connections = await db.query<{ name: string }>(`
+const connections = await db.query<{ name: string }>(
+  `
   MATCH (:User {name: $name})-[:FOLLOWS*1..3]->(connection:User)
   RETURN DISTINCT connection.name AS name
-`, { name: 'Alice' });
+`,
+  { name: "Alice" },
+);
 ```
 
 ### Upsert with MERGE
 
 ```typescript
-await db.execute(`
+await db.execute(
+  `
   MERGE (u:User {email: $email})
   ON CREATE SET u.name = $name, u.createdAt = datetime()
   ON MATCH SET u.lastSeen = datetime()
-`, { email: 'alice@example.com', name: 'Alice' });
+`,
+  { email: "alice@example.com", name: "Alice" },
+);
 ```
 
 ### Batch Insert with UNWIND
 
 ```typescript
 const users = [
-  { name: 'Alice', email: 'alice@example.com' },
-  { name: 'Bob', email: 'bob@example.com' },
+  { name: "Alice", email: "alice@example.com" },
+  { name: "Bob", email: "bob@example.com" },
 ];
 
-await db.execute(`
+await db.execute(
+  `
   UNWIND $users AS data
   CREATE (u:User {name: data.name, email: data.email})
-`, { users });
+`,
+  { users },
+);
 ```
 
 ### Error Handling
 
 ```typescript
-import { LeanGraph, LeanGraphError } from 'leangraph';
+import { LeanGraph, LeanGraphError } from "leangraph";
 
 try {
-  await db.query('MATCH (n:User RETURN n'); // syntax error
+  await db.query("MATCH (n:User RETURN n"); // syntax error
 } catch (err) {
   if (err instanceof LeanGraphError) {
     console.error(`Query failed: ${err.message}`);
@@ -316,14 +334,14 @@ try {
 Use test mode for fast, isolated tests:
 
 ```typescript
-import { LeanGraph } from 'leangraph';
+import { LeanGraph } from "leangraph";
 
-const db = await LeanGraph({ mode: 'test', project: 'test' });
+const db = await LeanGraph({ mode: "test", project: "test" });
 
 // Tests run against in-memory database
-await db.execute('CREATE (u:User {name: $name})', { name: 'Test' });
-const [user] = await db.query('MATCH (u:User) RETURN u.name AS name');
-assert(user.name === 'Test');
+await db.execute("CREATE (u:User {name: $name})", { name: "Test" });
+const [user] = await db.query("MATCH (u:User) RETURN u.name AS name");
+assert(user.name === "Test");
 
 db.close(); // In-memory DB is discarded
 ```
@@ -332,41 +350,41 @@ db.close(); // In-memory DB is discarded
 
 ### Supported Clauses
 
-| Clause | Example |
-|--------|---------|
-| `CREATE` | `CREATE (n:User {name: 'Alice'})` |
-| `MATCH` | `MATCH (n:User) RETURN n` |
-| `OPTIONAL MATCH` | `OPTIONAL MATCH (n)-[:KNOWS]->(m) RETURN m` |
-| `MERGE` | `MERGE (n:User {email: $email})` |
-| `WHERE` | `WHERE n.age > 21 AND n.active = true` |
-| `SET` | `SET n.name = 'Bob', n.updated = true` |
-| `DELETE` | `DELETE n` |
-| `DETACH DELETE` | `DETACH DELETE n` |
-| `RETURN` | `RETURN n.name AS name, count(*) AS total` |
-| `WITH` | `WITH n, count(*) AS cnt WHERE cnt > 1` |
-| `UNWIND` | `UNWIND $list AS item CREATE (n {value: item})` |
-| `UNION / UNION ALL` | `MATCH (n:A) RETURN n UNION MATCH (m:B) RETURN m` |
-| `ORDER BY` | `ORDER BY n.name DESC` |
-| `SKIP / LIMIT` | `SKIP 10 LIMIT 5` |
-| `DISTINCT` | `RETURN DISTINCT n.category` |
-| `CASE/WHEN` | `RETURN CASE WHEN n.age > 18 THEN 'adult' ELSE 'minor' END` |
-| `CALL` | `CALL db.labels() YIELD label RETURN label` |
-| `CREATE INDEX` | `CREATE INDEX ON (property)` |
-| `DROP INDEX` | `DROP INDEX idx_name` |
-| `CREATE CONSTRAINT` | `CREATE CONSTRAINT ON (n:Label) ASSERT n.prop IS UNIQUE` |
-| `DROP CONSTRAINT` | `DROP CONSTRAINT constraint_name` |
+| Clause              | Example                                                     |
+| ------------------- | ----------------------------------------------------------- |
+| `CREATE`            | `CREATE (n:User {name: 'Alice'})`                           |
+| `MATCH`             | `MATCH (n:User) RETURN n`                                   |
+| `OPTIONAL MATCH`    | `OPTIONAL MATCH (n)-[:KNOWS]->(m) RETURN m`                 |
+| `MERGE`             | `MERGE (n:User {email: $email})`                            |
+| `WHERE`             | `WHERE n.age > 21 AND n.active = true`                      |
+| `SET`               | `SET n.name = 'Bob', n.updated = true`                      |
+| `DELETE`            | `DELETE n`                                                  |
+| `DETACH DELETE`     | `DETACH DELETE n`                                           |
+| `RETURN`            | `RETURN n.name AS name, count(*) AS total`                  |
+| `WITH`              | `WITH n, count(*) AS cnt WHERE cnt > 1`                     |
+| `UNWIND`            | `UNWIND $list AS item CREATE (n {value: item})`             |
+| `UNION / UNION ALL` | `MATCH (n:A) RETURN n UNION MATCH (m:B) RETURN m`           |
+| `ORDER BY`          | `ORDER BY n.name DESC`                                      |
+| `SKIP / LIMIT`      | `SKIP 10 LIMIT 5`                                           |
+| `DISTINCT`          | `RETURN DISTINCT n.category`                                |
+| `CASE/WHEN`         | `RETURN CASE WHEN n.age > 18 THEN 'adult' ELSE 'minor' END` |
+| `CALL`              | `CALL db.labels() YIELD label RETURN label`                 |
+| `CREATE INDEX`      | `CREATE INDEX ON (property)`                                |
+| `DROP INDEX`        | `DROP INDEX idx_name`                                       |
+| `CREATE CONSTRAINT` | `CREATE CONSTRAINT ON (n:Label) ASSERT n.prop IS UNIQUE`    |
+| `DROP CONSTRAINT`   | `DROP CONSTRAINT constraint_name`                           |
 
 ### Operators
 
-| Category | Operators |
-|----------|-----------|
-| Comparison | `=`, `<>`, `<`, `>`, `<=`, `>=` |
-| Logical | `AND`, `OR`, `NOT` |
-| String | `CONTAINS`, `STARTS WITH`, `ENDS WITH` |
-| List | `IN` |
-| Null | `IS NULL`, `IS NOT NULL` |
-| Pattern | `EXISTS` |
-| Arithmetic | `+`, `-`, `*`, `/`, `%` |
+| Category   | Operators                              |
+| ---------- | -------------------------------------- |
+| Comparison | `=`, `<>`, `<`, `>`, `<=`, `>=`        |
+| Logical    | `AND`, `OR`, `NOT`                     |
+| String     | `CONTAINS`, `STARTS WITH`, `ENDS WITH` |
+| List       | `IN`                                   |
+| Null       | `IS NULL`, `IS NOT NULL`               |
+| Pattern    | `EXISTS`                               |
+| Arithmetic | `+`, `-`, `*`, `/`, `%`                |
 
 ### Functions
 
@@ -429,6 +447,7 @@ CREATE INDEX ON :User(email)
 ```
 
 **Built-in indexes** (created automatically):
+
 - Node primary label lookups
 - Edge type, source, and target for traversal
 
@@ -448,12 +467,13 @@ DROP CONSTRAINT unique_user_email
 ```
 
 Unique constraints:
+
 - Enforce uniqueness per label (not global)
 - Automatically create an index for the property
 - Reject duplicate values with a clear error message
 
 ```typescript
-await db.execute('CREATE CONSTRAINT ON (u:User) ASSERT u.email IS UNIQUE');
+await db.execute("CREATE CONSTRAINT ON (u:User) ASSERT u.email IS UNIQUE");
 await db.execute('CREATE (u:User {email: "alice@example.com"})');
 
 // This will fail with "UNIQUE constraint failed"
@@ -517,8 +537,6 @@ leangraph apikey list
 leangraph apikey remove <prefix>
 ```
 
-
-
 ## Advanced Usage
 
 ### Direct Database Access
@@ -526,19 +544,19 @@ leangraph apikey remove <prefix>
 For advanced use cases, you can access the underlying components:
 
 ```typescript
-import { GraphDatabase, Executor, parse, translate } from 'leangraph';
+import { GraphDatabase, Executor, parse, translate } from "leangraph";
 
 // Direct database access
-const db = new GraphDatabase('./my-database.db');
+const db = new GraphDatabase("./my-database.db");
 db.initialize();
 
 const executor = new Executor(db);
-const result = executor.execute('MATCH (n) RETURN n LIMIT 10');
+const result = executor.execute("MATCH (n) RETURN n LIMIT 10");
 
 db.close();
 
 // Parse Cypher to AST
-const parseResult = parse('MATCH (n:User) RETURN n');
+const parseResult = parse("MATCH (n:User) RETURN n");
 if (parseResult.success) {
   console.log(parseResult.query);
 }
@@ -551,14 +569,14 @@ console.log(translation.statements);
 ### Running a Custom Server
 
 ```typescript
-import { createServer } from 'leangraph';
-import { serve } from '@hono/node-server';
+import { createServer } from "leangraph";
+import { serve } from "@hono/node-server";
 
 const { app, dbManager } = createServer({
-  dataPath: './data',
+  dataPath: "./data",
   apiKeys: {
-    'my-api-key': { project: 'myapp', env: 'production' }
-  }
+    "my-api-key": { project: "myapp", env: "production" },
+  },
 });
 
 serve({ fetch: app.fetch, port: 3000 });
@@ -571,6 +589,7 @@ serve({ fetch: app.fetch, port: 3000 });
 JavaScript cannot precisely represent integers larger than `Number.MAX_SAFE_INTEGER` (9,007,199,254,740,991). Integers beyond this range will lose precision, which can cause unexpected behavior when comparing values.
 
 **Example of the problem:**
+
 ```javascript
 // These two different numbers become equal in JavaScript!
 const a = 4611686018427387905;
@@ -579,6 +598,7 @@ console.log(a === b); // true (both round to 4611686018427388000)
 ```
 
 **Workaround:** Use strings for large integer IDs:
+
 ```cypher
 // Instead of:
 CREATE (u:User {id: 4611686018427387905})
