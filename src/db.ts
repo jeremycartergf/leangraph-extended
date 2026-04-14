@@ -763,7 +763,7 @@ function registerCypherFunctions(db: import("better-sqlite3").Database): void {
             sawUnknown = true;
             continue;
           }
-          const equals = deepCypherEquals(candidate, target);
+          const equals = deepCypherEquals(candidate, target) as any;
           if (equals === true || equals === 1) return 1;
           if (equals === null) sawUnknown = true;
         }
