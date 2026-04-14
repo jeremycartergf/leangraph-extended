@@ -1,5 +1,5 @@
 // Database Wrapper for SQLite
-import * as nodePath from 'path';
+import * as nodePath from "path";
 
 // Lazy-loaded better-sqlite3 to avoid requiring it in remote mode
 let BetterSqlite3: any = null;
@@ -11,11 +11,11 @@ let BetterSqlite3: any = null;
 function getBetterSqlite3(): any {
   if (BetterSqlite3 === null) {
     try {
-      BetterSqlite3 = require('better-sqlite3');
+      BetterSqlite3 = require("better-sqlite3");
     } catch (err) {
       throw new Error(
-        'better-sqlite3 is not installed. Install it with: npm install better-sqlite3\n' +
-          'Note: better-sqlite3 is only required for local/test mode. Remote mode does not need it.',
+        "better-sqlite3 is not installed. Install it with: npm install better-sqlite3\n" +
+          "Note: better-sqlite3 is only required for local/test mode. Remote mode does not need it.",
       );
     }
   }
@@ -108,7 +108,7 @@ function convertParamForSqlite(value: unknown): unknown {
   if (value === undefined) {
     return null;
   }
-  if (typeof value === 'function' || typeof value === 'symbol') {
+  if (typeof value === "function" || typeof value === "symbol") {
     return null;
   }
   if (value instanceof Date) {
@@ -121,7 +121,7 @@ function convertParamForSqlite(value: unknown): unknown {
     return JSON.stringify(value.map(convertParamForSqlite));
   }
   if (
-    typeof value === 'number' &&
+    typeof value === "number" &&
     Number.isInteger(value) &&
     !Number.isSafeInteger(value)
   ) {
@@ -130,10 +130,10 @@ function convertParamForSqlite(value: unknown): unknown {
     return BigInt(String(value));
   }
   // Convert booleans to 1/0 for SQLite
-  if (typeof value === 'boolean') {
+  if (typeof value === "boolean") {
     return value ? 1 : 0;
   }
-  if (value && typeof value === 'object') {
+  if (value && typeof value === "object") {
     return JSON.stringify(value);
   }
   return value;
@@ -180,8 +180,8 @@ function deepCypherEquals(a: unknown, b: unknown): number | null {
 
   // Objects (maps)
   if (
-    typeof a === 'object' &&
-    typeof b === 'object' &&
+    typeof a === "object" &&
+    typeof b === "object" &&
     a !== null &&
     b !== null &&
     !Array.isArray(a) &&
@@ -190,7 +190,7 @@ function deepCypherEquals(a: unknown, b: unknown): number | null {
     const keysA = Object.keys(a as Record<string, unknown>).sort();
     const keysB = Object.keys(b as Record<string, unknown>).sort();
     if (keysA.length !== keysB.length) return 0;
-    if (keysA.join(',') !== keysB.join(',')) return 0;
+    if (keysA.join(",") !== keysB.join(",")) return 0;
 
     let hasNull = false;
     for (const k of keysA) {
@@ -234,33 +234,33 @@ function getCypherTypeForOrdering(value: unknown): string | null {
   const jsType = typeof value;
 
   // Numbers (integer and real) are in the same ordering category
-  if (jsType === 'number' || jsType === 'bigint') return 'number';
+  if (jsType === "number" || jsType === "bigint") return "number";
 
   // Strings - could be raw strings OR JSON-formatted values from -> operator
-  if (jsType === 'string') {
+  if (jsType === "string") {
     const s = value as string;
 
     // Check for JSON boolean literals (from -> operator)
-    if (s === 'true' || s === 'false') return 'boolean';
+    if (s === "true" || s === "false") return "boolean";
 
     // Check for JSON null
-    if (s === 'null') return null;
+    if (s === "null") return null;
 
     // Check for JSON array
-    if (s.startsWith('[') && s.endsWith(']')) {
+    if (s.startsWith("[") && s.endsWith("]")) {
       try {
         JSON.parse(s);
-        return 'array'; // arrays are not orderable
+        return "array"; // arrays are not orderable
       } catch {
         // Not valid JSON, treat as string
       }
     }
 
     // Check for JSON object
-    if (s.startsWith('{') && s.endsWith('}')) {
+    if (s.startsWith("{") && s.endsWith("}")) {
       try {
         JSON.parse(s);
-        return 'object'; // objects are not orderable
+        return "object"; // objects are not orderable
       } catch {
         // Not valid JSON, treat as string
       }
@@ -268,31 +268,31 @@ function getCypherTypeForOrdering(value: unknown): string | null {
 
     // Check for JSON string literal (starts and ends with quotes)
     if (s.startsWith('"') && s.endsWith('"') && s.length >= 2) {
-      return 'string';
+      return "string";
     }
 
     // Check for JSON number (no quotes, valid number)
     if (/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(s)) {
-      return 'number';
+      return "number";
     }
 
     // Check for temporal types (times with timezone need special comparison)
-    if (TIME_PATTERN.test(s)) return 'time';
-    if (DATETIME_PATTERN.test(s)) return 'datetime';
-    if (DATE_PATTERN.test(s)) return 'date';
-    if (LOCALTIME_PATTERN.test(s)) return 'localtime';
-    if (LOCALDATETIME_PATTERN.test(s)) return 'localdatetime';
+    if (TIME_PATTERN.test(s)) return "time";
+    if (DATETIME_PATTERN.test(s)) return "datetime";
+    if (DATE_PATTERN.test(s)) return "date";
+    if (LOCALTIME_PATTERN.test(s)) return "localtime";
+    if (LOCALDATETIME_PATTERN.test(s)) return "localdatetime";
 
     // Otherwise treat as a plain string
-    return 'string';
+    return "string";
   }
 
   // Booleans - SQLite stores these as integers, but if we somehow get a JS boolean
-  if (jsType === 'boolean') return 'boolean';
+  if (jsType === "boolean") return "boolean";
 
   // Objects and arrays in JS form (shouldn't normally happen with SQLite)
-  if (Array.isArray(value)) return 'array';
-  if (jsType === 'object') return 'object';
+  if (Array.isArray(value)) return "array";
+  if (jsType === "object") return "object";
 
   return null;
 }
@@ -307,8 +307,8 @@ function areCypherTypesOrderable(
   if (typeA === null || typeB === null) return false;
 
   // Arrays, objects, nodes, relationships are not orderable
-  if (typeA === 'array' || typeB === 'array') return false;
-  if (typeA === 'object' || typeB === 'object') return false;
+  if (typeA === "array" || typeB === "array") return false;
+  if (typeA === "object" || typeB === "object") return false;
 
   // Same type is always orderable
   if (typeA === typeB) return true;
@@ -322,8 +322,8 @@ function areCypherTypesOrderable(
  * Parse timezone offset to minutes from UTC
  */
 function parseTimezoneOffset(tz: string): number {
-  if (tz === 'Z' || tz === '+00:00') return 0;
-  const sign = tz[0] === '-' ? -1 : 1;
+  if (tz === "Z" || tz === "+00:00") return 0;
+  const sign = tz[0] === "-" ? -1 : 1;
   const hours = parseInt(tz.slice(1, 3), 10);
   const minutes = parseInt(tz.slice(4, 6), 10);
   return sign * (hours * 60 + minutes);
@@ -335,13 +335,13 @@ function parseTimezoneOffset(tz: string): number {
 function timeToNanosUTC(timeStr: string): number {
   // Format: HH:MM or HH:MM:SS or HH:MM:SS.nnnnnnnnn followed by Z or +HH:MM or -HH:MM
   // May also have [timezone] suffix - strip it
-  const withoutTzName = timeStr.replace(/\[.+\]$/, '');
+  const withoutTzName = timeStr.replace(/\[.+\]$/, "");
 
   // Find timezone part
   let tzOffset = 0;
   let timePart = withoutTzName;
 
-  if (withoutTzName.endsWith('Z')) {
+  if (withoutTzName.endsWith("Z")) {
     timePart = withoutTzName.slice(0, -1);
     tzOffset = 0;
   } else {
@@ -353,18 +353,18 @@ function timeToNanosUTC(timeStr: string): number {
   }
 
   // Parse time components
-  const parts = timePart.split(':');
+  const parts = timePart.split(":");
   const hours = parseInt(parts[0], 10);
   const minutes = parseInt(parts[1], 10);
   let seconds = 0;
   let nanos = 0;
 
   if (parts[2]) {
-    const secParts = parts[2].split('.');
+    const secParts = parts[2].split(".");
     seconds = parseInt(secParts[0], 10);
     if (secParts[1]) {
       // Pad or truncate to 9 digits
-      const fracStr = secParts[1].padEnd(9, '0').slice(0, 9);
+      const fracStr = secParts[1].padEnd(9, "0").slice(0, 9);
       nanos = parseInt(fracStr, 10);
     }
   }
@@ -387,32 +387,32 @@ function toComparableValue(
   value: unknown,
   type: string,
 ): number | string | boolean {
-  if (typeof value === 'string') {
-    if (type === 'number') {
+  if (typeof value === "string") {
+    if (type === "number") {
       return parseFloat(value);
     }
-    if (type === 'boolean') {
-      return value === 'true';
+    if (type === "boolean") {
+      return value === "true";
     }
-    if (type === 'string') {
+    if (type === "string") {
       // JSON string literal - remove outer quotes
       if (value.startsWith('"') && value.endsWith('"')) {
         return value.slice(1, -1);
       }
       return value;
     }
-    if (type === 'time') {
+    if (type === "time") {
       // Convert to nanoseconds from midnight UTC for comparison
       return timeToNanosUTC(value);
     }
-    if (type === 'datetime') {
+    if (type === "datetime") {
       // Strip [timezone] suffix and compare lexically (ISO format is naturally sortable when in UTC or same TZ)
       // For proper comparison, we'd need to convert to UTC, but for same-offset datetimes, lexical works
       // TODO: Full timezone-aware datetime comparison
-      return value.replace(/\[.+\]$/, '');
+      return value.replace(/\[.+\]$/, "");
     }
     // date, localtime, localdatetime can be compared lexically (ISO format is sortable)
-    if (type === 'date' || type === 'localtime' || type === 'localdatetime') {
+    if (type === "date" || type === "localtime" || type === "localdatetime") {
       return value;
     }
   }
@@ -425,19 +425,19 @@ function toComparableValue(
  */
 function toBoolValue(x: unknown): boolean | null {
   if (x === null || x === undefined) return null;
-  if (x === 1 || x === true || x === 'true') return true;
-  if (x === 0 || x === false || x === 'false') return false;
+  if (x === 1 || x === true || x === "true") return true;
+  if (x === 0 || x === false || x === "false") return false;
   return null;
 }
 
 /**
  * Register custom SQL functions for Cypher semantics on a database instance.
  */
-function registerCypherFunctions(db: import('better-sqlite3').Database): void {
+function registerCypherFunctions(db: import("better-sqlite3").Database): void {
   // cypher_not: Proper boolean negation that works with both JSON booleans and integers
   // Converts json('true')/1 -> 0, json('false')/0 -> 1, null -> null
   // Returns integers for SQLite compatibility in WHERE clauses
-  db.function('cypher_not', { deterministic: true }, (x: unknown) => {
+  db.function("cypher_not", { deterministic: true }, (x: unknown) => {
     const b = toBoolValue(x);
     if (b === null) return null;
     return b ? 0 : 1;
@@ -446,7 +446,7 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
   // cypher_and: Proper boolean AND that works with both JSON booleans and integers
   // Returns integers for SQLite compatibility in WHERE clauses
   db.function(
-    'cypher_and',
+    "cypher_and",
     { deterministic: true },
     (a: unknown, b: unknown) => {
       const boolA = toBoolValue(a);
@@ -461,7 +461,7 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
   // cypher_or: Proper boolean OR that works with both JSON booleans and integers
   // Returns integers for SQLite compatibility in WHERE clauses
   db.function(
-    'cypher_or',
+    "cypher_or",
     { deterministic: true },
     (a: unknown, b: unknown) => {
       const boolA = toBoolValue(a);
@@ -475,31 +475,31 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
 
   // cypher_to_json_bool: Convert 0/1/null to JSON boolean for RETURN results
   // This preserves boolean type information through SQLite's JSON functions
-  db.function('cypher_to_json_bool', { deterministic: true }, (x: unknown) => {
+  db.function("cypher_to_json_bool", { deterministic: true }, (x: unknown) => {
     const b = toBoolValue(x);
     if (b === null) return null;
-    return b ? 'true' : 'false'; // Returns JSON boolean literal string
+    return b ? "true" : "false"; // Returns JSON boolean literal string
   });
 
   // cypher_to_string: Convert value to string for concatenation
   // Integers should not have .0 suffix (e.g., 2 -> "2", not "2.0")
   // Note: JSON extraction in SQLite returns numbers as strings like "2.0"
-  db.function('cypher_to_string', { deterministic: true }, (x: unknown) => {
+  db.function("cypher_to_string", { deterministic: true }, (x: unknown) => {
     if (x === null || x === undefined) return null;
-    if (typeof x === 'string') {
+    if (typeof x === "string") {
       // Check if it's a string that looks like an integer with .0 suffix (e.g., "2.0", "-5.0")
       // This happens when JSON extraction returns integer values
       if (/^-?\d+\.0$/.test(x)) {
-        return x.replace(/\.0$/, '');
+        return x.replace(/\.0$/, "");
       }
       return x;
     }
-    if (typeof x === 'number') {
+    if (typeof x === "number") {
       // Format integers without decimal point
       if (Number.isInteger(x)) return String(Math.trunc(x));
       return String(x);
     }
-    if (typeof x === 'boolean') return x ? 'true' : 'false';
+    if (typeof x === "boolean") return x ? "true" : "false";
     // For objects/arrays, return JSON representation
     return JSON.stringify(x);
   });
@@ -508,7 +508,7 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
   // Handles cases where one side is a JSON boolean string ('true'/'false') and the other is an integer (1/0)
   // Returns: 1 if equal, 0 if not equal, null if either is null
   db.function(
-    'cypher_bool_eq',
+    "cypher_bool_eq",
     { deterministic: true },
     (a: unknown, b: unknown) => {
       if (a === null || a === undefined || b === null || b === undefined)
@@ -531,7 +531,7 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
   // cypher_compare: Type-aware comparison for ordering operators (<, <=, >, >=)
   // Returns: 1 if condition is true, 0 if false, null if types are incompatible
   db.function(
-    'cypher_lt',
+    "cypher_lt",
     { deterministic: true },
     (a: unknown, b: unknown) => {
       if (a === null || a === undefined || b === null || b === undefined)
@@ -546,7 +546,7 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
   );
 
   db.function(
-    'cypher_lte',
+    "cypher_lte",
     { deterministic: true },
     (a: unknown, b: unknown) => {
       if (a === null || a === undefined || b === null || b === undefined)
@@ -561,7 +561,7 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
   );
 
   db.function(
-    'cypher_gt',
+    "cypher_gt",
     { deterministic: true },
     (a: unknown, b: unknown) => {
       if (a === null || a === undefined || b === null || b === undefined)
@@ -576,7 +576,7 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
   );
 
   db.function(
-    'cypher_gte',
+    "cypher_gte",
     { deterministic: true },
     (a: unknown, b: unknown) => {
       if (a === null || a === undefined || b === null || b === undefined)
@@ -592,7 +592,7 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
 
   // cypher_equals: Null-aware deep equality for lists and maps
   db.function(
-    'cypher_equals',
+    "cypher_equals",
     { deterministic: true },
     (a: unknown, b: unknown) => {
       // Handle SQL NULL
@@ -602,12 +602,12 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
       // Try to parse as JSON (for arrays/objects stored as JSON strings)
       let parsedA: unknown, parsedB: unknown;
       try {
-        parsedA = typeof a === 'string' ? JSON.parse(a) : a;
+        parsedA = typeof a === "string" ? JSON.parse(a) : a;
       } catch {
         parsedA = a;
       }
       try {
-        parsedB = typeof b === 'string' ? JSON.parse(b) : b;
+        parsedB = typeof b === "string" ? JSON.parse(b) : b;
       } catch {
         parsedB = b;
       }
@@ -619,7 +619,7 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
   // cypher_list_contains: Membership check for Cypher IN semantics over list-like values.
   // Returns: 1 if found, 0 if not found, null if unknown due to nulls.
   db.function(
-    'cypher_list_contains',
+    "cypher_list_contains",
     { deterministic: true },
     (listValue: unknown, itemValue: unknown) => {
       if (listValue === null || listValue === undefined) return null;
@@ -627,12 +627,12 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
       const normalize = (value: unknown): unknown => {
         if (value === null || value === undefined) return value;
 
-        if (typeof value === 'string') {
+        if (typeof value === "string") {
           try {
             const parsed = JSON.parse(value);
             if (
               parsed &&
-              typeof parsed === 'object' &&
+              typeof parsed === "object" &&
               !Array.isArray(parsed)
             ) {
               const record = parsed as Record<string, unknown>;
@@ -646,7 +646,7 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
           }
         }
 
-        if (typeof value === 'object' && !Array.isArray(value)) {
+        if (typeof value === "object" && !Array.isArray(value)) {
           const record = value as Record<string, unknown>;
           if (record._nf_id !== undefined) {
             return record._nf_id;
@@ -657,7 +657,7 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
       };
 
       let parsedList: unknown = listValue;
-      if (typeof parsedList === 'string') {
+      if (typeof parsedList === "string") {
         try {
           parsedList = JSON.parse(parsedList);
         } catch {
@@ -682,7 +682,7 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
           continue;
         }
 
-        const equals = deepCypherEquals(candidate, needle);
+        const equals = deepCypherEquals(candidate, needle) as any;
         if (equals === true || equals === 1) {
           return 1;
         }
@@ -700,24 +700,24 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
   // with Cypher IN semantics against targetList.
   // Returns 1/0/null for true/false/unknown.
   db.function(
-    'cypher_list_predicate_in',
+    "cypher_list_predicate_in",
     { deterministic: true },
     (
       predicateTypeRaw: unknown,
       sourceListValue: unknown,
       targetListValue: unknown,
     ) => {
-      const predicateType = String(predicateTypeRaw ?? '').toUpperCase();
+      const predicateType = String(predicateTypeRaw ?? "").toUpperCase();
 
       const normalize = (value: unknown): unknown => {
         if (value === null || value === undefined) return value;
 
-        if (typeof value === 'string') {
+        if (typeof value === "string") {
           try {
             const parsed = JSON.parse(value);
             if (
               parsed &&
-              typeof parsed === 'object' &&
+              typeof parsed === "object" &&
               !Array.isArray(parsed)
             ) {
               const record = parsed as Record<string, unknown>;
@@ -729,7 +729,7 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
           }
         }
 
-        if (typeof value === 'object' && !Array.isArray(value)) {
+        if (typeof value === "object" && !Array.isArray(value)) {
           const record = value as Record<string, unknown>;
           if (record._nf_id !== undefined) return record._nf_id;
         }
@@ -740,7 +740,7 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
       const toList = (value: unknown): unknown[] | null => {
         if (value === null || value === undefined) return null;
         let parsed: unknown = value;
-        if (typeof parsed === 'string') {
+        if (typeof parsed === "string") {
           try {
             parsed = JSON.parse(parsed);
           } catch {
@@ -774,10 +774,10 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
       if (sourceList === null) return null;
 
       if (sourceList.length === 0) {
-        if (predicateType === 'ALL') return 1;
-        if (predicateType === 'ANY') return 0;
-        if (predicateType === 'NONE') return 1;
-        if (predicateType === 'SINGLE') return 0;
+        if (predicateType === "ALL") return 1;
+        if (predicateType === "ANY") return 0;
+        if (predicateType === "NONE") return 1;
+        if (predicateType === "SINGLE") return 0;
         return null;
       }
 
@@ -792,19 +792,19 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
       }
 
       switch (predicateType) {
-        case 'ALL':
+        case "ALL":
           if (falseCount > 0) return 0;
           if (nullCount > 0) return null;
           return 1;
-        case 'ANY':
+        case "ANY":
           if (trueCount > 0) return 1;
           if (nullCount > 0) return null;
           return 0;
-        case 'NONE':
+        case "NONE":
           if (trueCount > 0) return 0;
           if (nullCount > 0) return null;
           return 1;
-        case 'SINGLE':
+        case "SINGLE":
           if (trueCount > 1) return 0;
           if (nullCount > 0) return null;
           return trueCount === 1 ? 1 : 0;
@@ -818,48 +818,48 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
   // Takes value+type pairs to preserve type information across SQLite's type coercion
   // Returns: 1 if equal (same type and value), 0 if not equal
   db.function(
-    'cypher_case_eq',
+    "cypher_case_eq",
     { deterministic: true },
     (val1: unknown, type1: string, val2: unknown, type2: string) => {
       // NULL handling: if either is null, return null (unknown)
       if (val1 === null || val2 === null) return null;
-      if (type1 === 'null' || type2 === 'null') return null;
+      if (type1 === "null" || type2 === "null") return null;
 
       // Helper to get runtime type from a value
       const getRuntimeType = (val: unknown): string => {
-        if (val === null) return 'null';
+        if (val === null) return "null";
         const jsType = typeof val;
-        if (jsType === 'boolean' || val === 0 || val === 1) {
+        if (jsType === "boolean" || val === 0 || val === 1) {
           // SQLite stores booleans as 0/1, so we can't distinguish at runtime
           // We rely on the compile-time type info for this
-          return 'unknown_number_or_boolean';
+          return "unknown_number_or_boolean";
         }
-        if (jsType === 'number' || jsType === 'bigint') return 'number';
-        if (jsType === 'string') {
+        if (jsType === "number" || jsType === "bigint") return "number";
+        if (jsType === "string") {
           // Check if it's a JSON array/object
           const str = val as string;
-          if (str.startsWith('[')) return 'list';
-          if (str.startsWith('{')) return 'map';
-          return 'string';
+          if (str.startsWith("[")) return "list";
+          if (str.startsWith("{")) return "map";
+          return "string";
         }
-        return 'unknown';
+        return "unknown";
       };
 
       // Resolve "dynamic" types using runtime type detection
       let resolvedType1 = type1;
       let resolvedType2 = type2;
 
-      if (type1 === 'dynamic') {
+      if (type1 === "dynamic") {
         resolvedType1 = getRuntimeType(val1);
       }
-      if (type2 === 'dynamic') {
+      if (type2 === "dynamic") {
         resolvedType2 = getRuntimeType(val2);
       }
 
       // Normalize numeric types: integer, float, and number are all comparable
       const normalizeNumericType = (t: string): string => {
-        if (t === 'integer' || t === 'float' || t === 'number')
-          return 'numeric';
+        if (t === "integer" || t === "float" || t === "number")
+          return "numeric";
         return t;
       };
 
@@ -872,15 +872,15 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
 
       // Same type - compare values
       // For lists/maps, use deep comparison
-      if (normType1 === 'list' || normType1 === 'map') {
+      if (normType1 === "list" || normType1 === "map") {
         let parsed1: unknown, parsed2: unknown;
         try {
-          parsed1 = typeof val1 === 'string' ? JSON.parse(val1) : val1;
+          parsed1 = typeof val1 === "string" ? JSON.parse(val1) : val1;
         } catch {
           parsed1 = val1;
         }
         try {
-          parsed2 = typeof val2 === 'string' ? JSON.parse(val2) : val2;
+          parsed2 = typeof val2 === "string" ? JSON.parse(val2) : val2;
         } catch {
           parsed2 = val2;
         }
@@ -889,7 +889,7 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
       }
 
       // For numeric types, compare as numbers
-      if (normType1 === 'numeric') {
+      if (normType1 === "numeric") {
         const num1 = Number(val1);
         const num2 = Number(val2);
         return num1 === num2 ? 1 : 0;
@@ -904,16 +904,16 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
   // Convert a datetime value to the supplied timezone while preserving Cypher-like
   // output formatting (offset plus optional [IANA] zone suffix).
   db.function(
-    'cypher_datetime_with_timezone',
+    "cypher_datetime_with_timezone",
     { deterministic: true },
     (rawValue: unknown, timezoneValue: unknown) => {
       if (rawValue === null || rawValue === undefined) return null;
 
       const tryUnquoteJsonString = (value: unknown): unknown => {
-        if (typeof value !== 'string') return value;
+        if (typeof value !== "string") return value;
         try {
           const parsed = JSON.parse(value);
-          return typeof parsed === 'string' ? parsed : value;
+          return typeof parsed === "string" ? parsed : value;
         } catch {
           return value;
         }
@@ -921,8 +921,8 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
 
       let raw = tryUnquoteJsonString(rawValue);
       const timezoneRaw = tryUnquoteJsonString(timezoneValue);
-      if (typeof raw === 'string') {
-        raw = raw.replace(/\[[^\]]+\]$/, '');
+      if (typeof raw === "string") {
+        raw = raw.replace(/\[[^\]]+\]$/, "");
       }
 
       const base = new Date(raw as string | number | Date);
@@ -930,23 +930,23 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
 
       const timezone =
         timezoneRaw === null || timezoneRaw === undefined
-          ? 'UTC'
+          ? "UTC"
           : String(timezoneRaw);
 
-      const pad2 = (n: number): string => String(n).padStart(2, '0');
+      const pad2 = (n: number): string => String(n).padStart(2, "0");
       const parseOffsetMinutes = (tz: string): number | null => {
-        if (tz === 'Z') return 0;
+        if (tz === "Z") return 0;
         const match = tz.match(/^([+-])(\d{2}):(\d{2})$/);
         if (!match) return null;
-        const sign = match[1] === '-' ? -1 : 1;
+        const sign = match[1] === "-" ? -1 : 1;
         return sign * (Number(match[2]) * 60 + Number(match[3]));
       };
       const parseShortOffset = (tzName: string): string | null => {
-        if (tzName === 'GMT' || tzName === 'UTC') return '+00:00';
+        if (tzName === "GMT" || tzName === "UTC") return "+00:00";
         const match = tzName.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
         if (!match) return null;
-        const hh = String(Number(match[2])).padStart(2, '0');
-        const mm = String(Number(match[3] ?? '0')).padStart(2, '0');
+        const hh = String(Number(match[2])).padStart(2, "0");
+        const mm = String(Number(match[3] ?? "0")).padStart(2, "0");
         return `${match[1]}${hh}:${mm}`;
       };
 
@@ -959,33 +959,33 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
         const hour = pad2(shifted.getUTCHours());
         const minute = pad2(shifted.getUTCMinutes());
         const second = pad2(shifted.getUTCSeconds());
-        const tzOut = timezone === 'Z' ? '+00:00' : timezone;
+        const tzOut = timezone === "Z" ? "+00:00" : timezone;
         return `${year}-${month}-${day}T${hour}:${minute}:${second}${tzOut}`;
       }
 
       try {
-        const parts = new Intl.DateTimeFormat('en-CA', {
+        const parts = new Intl.DateTimeFormat("en-CA", {
           timeZone: timezone,
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
           hour12: false,
-          timeZoneName: 'shortOffset',
+          timeZoneName: "shortOffset",
         }).formatToParts(base);
 
         const pick = (type: string) =>
-          parts.find((part) => part.type === type)?.value ?? '';
-        const year = pick('year');
-        const month = pick('month');
-        const day = pick('day');
-        const hour = pick('hour');
-        const minute = pick('minute');
-        const second = pick('second');
-        const tzName = pick('timeZoneName');
-        const offset = parseShortOffset(tzName) ?? '+00:00';
+          parts.find((part) => part.type === type)?.value ?? "";
+        const year = pick("year");
+        const month = pick("month");
+        const day = pick("day");
+        const hour = pick("hour");
+        const minute = pick("minute");
+        const second = pick("second");
+        const tzName = pick("timeZoneName");
+        const offset = parseShortOffset(tzName) ?? "+00:00";
 
         if (!year || !month || !day || !hour || !minute || !second) return null;
         return `${year}-${month}-${day}T${hour}:${minute}:${second}${offset}[${timezone}]`;
@@ -1001,7 +1001,7 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
   // Security: Rejects patterns with nested quantifiers that cause catastrophic
   // backtracking (ReDoS), and limits input string length.
   db.function(
-    'cypher_regex',
+    "cypher_regex",
     { deterministic: true },
     (str: unknown, pattern: unknown) => {
       if (
@@ -1011,7 +1011,7 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
         pattern === undefined
       )
         return null;
-      if (typeof str !== 'string' || typeof pattern !== 'string') return 0;
+      if (typeof str !== "string" || typeof pattern !== "string") return 0;
 
       // Limit input length to mitigate ReDoS via large inputs
       const MAX_REGEX_INPUT_LENGTH = 10_000;
@@ -1028,14 +1028,14 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
       const NESTED_QUANTIFIER = /([+*]|\{\d+,\d*\})\s*\)([+*]|\{\d+,\d*\})/;
       if (NESTED_QUANTIFIER.test(pattern)) {
         throw new Error(
-          'Regex pattern rejected: nested quantifiers can cause catastrophic backtracking',
+          "Regex pattern rejected: nested quantifiers can cause catastrophic backtracking",
         );
       }
 
       try {
         // Extract inline modifiers like (?i) (?m) (?s) from pattern start
         // JavaScript doesn't support inline modifiers, so convert to flags
-        let flags = '';
+        let flags = "";
         let actualPattern = pattern;
         const modifierMatch = pattern.match(/^\(\?([imsu]+)\)/);
         if (modifierMatch) {
@@ -1048,8 +1048,8 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
         // Invalid regex pattern — re-throw length/backtracking errors, suppress others
         if (
           e instanceof Error &&
-          (e.message.includes('maximum length') ||
-            e.message.includes('backtracking'))
+          (e.message.includes("maximum length") ||
+            e.message.includes("backtracking"))
         )
           throw e;
         return 0;
@@ -1062,10 +1062,10 @@ function registerCypherFunctions(db: import('better-sqlite3').Database): void {
  * Register custom APOC-compatible functions using better-sqlite3's native db.function().
  */
 function registerJavascriptFunctions(
-  db: import('better-sqlite3').Database,
+  db: import("better-sqlite3").Database,
 ): void {
   db.function(
-    'apoc_convert_fromjsonmap',
+    "apoc_convert_fromjsonmap",
     { deterministic: true, varargs: true },
     (...args: unknown[]) => {
       const value = args[0];
@@ -1073,7 +1073,7 @@ function registerJavascriptFunctions(
       if (value === null || value === undefined) return null;
 
       let mapValue: unknown = value;
-      if (typeof mapValue === 'string') {
+      if (typeof mapValue === "string") {
         try {
           mapValue = JSON.parse(mapValue);
         } catch {
@@ -1082,21 +1082,21 @@ function registerJavascriptFunctions(
       }
       if (
         !mapValue ||
-        typeof mapValue !== 'object' ||
+        typeof mapValue !== "object" ||
         Array.isArray(mapValue)
       ) {
         return null;
       }
 
-      if (typeof path === 'string' && path.length > 0) {
-        const raw = path.replace(/^\$\./, '').replace(/^\$/, '');
+      if (typeof path === "string" && path.length > 0) {
+        const raw = path.replace(/^\$\./, "").replace(/^\$/, "");
         if (raw.length > 0) {
-          const keys = raw.split('.').filter(Boolean);
+          const keys = raw.split(".").filter(Boolean);
           let current: unknown = mapValue;
           for (const key of keys) {
             if (
               current &&
-              typeof current === 'object' &&
+              typeof current === "object" &&
               !Array.isArray(current) &&
               key in current
             ) {
@@ -1114,7 +1114,7 @@ function registerJavascriptFunctions(
   );
 
   db.function(
-    'apoc_convert_tojson',
+    "apoc_convert_tojson",
     { deterministic: true },
     (value: unknown) => {
       if (value === undefined) return null;
@@ -1127,17 +1127,17 @@ function registerJavascriptFunctions(
   );
 
   db.function(
-    'apoc_text_join',
+    "apoc_text_join",
     { deterministic: true },
     (listInput: unknown, delimiterRaw: unknown) => {
       const delimiter =
         delimiterRaw === null || delimiterRaw === undefined
-          ? ''
+          ? ""
           : String(delimiterRaw);
       if (listInput === null || listInput === undefined) return null;
 
       let list: unknown = listInput;
-      if (typeof list === 'string') {
+      if (typeof list === "string") {
         try {
           list = JSON.parse(list);
         } catch {
@@ -1154,7 +1154,7 @@ function registerJavascriptFunctions(
   );
 
   db.function(
-    'apoc_text_jarowinklerdistance',
+    "apoc_text_jarowinklerdistance",
     { deterministic: true },
     (leftRaw: unknown, rightRaw: unknown) => {
       if (
@@ -1217,7 +1217,7 @@ function registerJavascriptFunctions(
   );
 
   db.function(
-    'apoc_map_removekeys',
+    "apoc_map_removekeys",
     { deterministic: true, varargs: true },
     (...args: unknown[]) => {
       const source = args[0];
@@ -1226,18 +1226,18 @@ function registerJavascriptFunctions(
       if (source === null || source === undefined) return null;
 
       let mapValue: unknown = source;
-      if (typeof mapValue === 'string') {
+      if (typeof mapValue === "string") {
         try {
           mapValue = JSON.parse(mapValue);
         } catch {
           return null;
         }
       }
-      if (!mapValue || typeof mapValue !== 'object' || Array.isArray(mapValue))
+      if (!mapValue || typeof mapValue !== "object" || Array.isArray(mapValue))
         return null;
 
       let keys: unknown = keysInput;
-      if (typeof keys === 'string') {
+      if (typeof keys === "string") {
         try {
           keys = JSON.parse(keys);
         } catch {
@@ -1248,20 +1248,20 @@ function registerJavascriptFunctions(
 
       let recursive = false;
       let config: unknown = configInput;
-      if (typeof config === 'string') {
+      if (typeof config === "string") {
         try {
           config = JSON.parse(config);
         } catch {
           config = null;
         }
       }
-      if (config && typeof config === 'object' && !Array.isArray(config)) {
+      if (config && typeof config === "object" && !Array.isArray(config)) {
         recursive = (config as Record<string, unknown>).recursive === true;
       }
 
       const removeSet = new Set((keys as unknown[]).map((k) => String(k)));
       const strip = (obj: unknown): unknown => {
-        if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
+        if (!obj || typeof obj !== "object" || Array.isArray(obj)) return obj;
         const out: Record<string, unknown> = {};
         for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
           if (removeSet.has(k)) continue;
@@ -1274,11 +1274,11 @@ function registerJavascriptFunctions(
     },
   );
 
-  db.function('apoc_coll_toset', { deterministic: true }, (input: unknown) => {
+  db.function("apoc_coll_toset", { deterministic: true }, (input: unknown) => {
     if (input === null || input === undefined) return null;
 
     let list: unknown = input;
-    if (typeof list === 'string') {
+    if (typeof list === "string") {
       try {
         list = JSON.parse(list);
       } catch {
@@ -1301,17 +1301,17 @@ function registerJavascriptFunctions(
   });
 
   db.function(
-    'apoc_coll_flatten',
+    "apoc_coll_flatten",
     { deterministic: true, varargs: true },
     (...args: unknown[]) => {
       const input = args[0];
       const recursiveRaw = args[1];
       const recursive =
-        recursiveRaw === true || recursiveRaw === 1 || recursiveRaw === 'true';
+        recursiveRaw === true || recursiveRaw === 1 || recursiveRaw === "true";
       if (input === null || input === undefined) return null;
 
       let list: unknown = input;
-      if (typeof list === 'string') {
+      if (typeof list === "string") {
         try {
           list = JSON.parse(list);
         } catch {
@@ -1322,7 +1322,7 @@ function registerJavascriptFunctions(
 
       const toExpandable = (item: unknown): unknown => {
         if (Array.isArray(item)) return item;
-        if (typeof item === 'string') {
+        if (typeof item === "string") {
           try {
             const parsed = JSON.parse(item);
             if (Array.isArray(parsed)) return parsed;
@@ -1355,7 +1355,7 @@ function registerJavascriptFunctions(
   );
 
   db.function(
-    'apoc_coll_subtract',
+    "apoc_coll_subtract",
     { deterministic: true },
     (leftInput: unknown, rightInput: unknown) => {
       if (leftInput === null || leftInput === undefined) return null;
@@ -1363,7 +1363,7 @@ function registerJavascriptFunctions(
 
       const parseList = (value: unknown): unknown[] | null => {
         let list: unknown = value;
-        if (typeof list === 'string') {
+        if (typeof list === "string") {
           try {
             list = JSON.parse(list);
           } catch {
@@ -1383,11 +1383,11 @@ function registerJavascriptFunctions(
     },
   );
 
-  db.function('apoc_coll_avg', { deterministic: true }, (input: unknown) => {
+  db.function("apoc_coll_avg", { deterministic: true }, (input: unknown) => {
     if (input === null || input === undefined) return null;
 
     let list: unknown = input;
-    if (typeof list === 'string') {
+    if (typeof list === "string") {
       try {
         list = JSON.parse(list);
       } catch {
@@ -1403,11 +1403,11 @@ function registerJavascriptFunctions(
     return nums.reduce((a, b) => a + b, 0) / nums.length;
   });
 
-  db.function('apoc_coll_min', { deterministic: true }, (input: unknown) => {
+  db.function("apoc_coll_min", { deterministic: true }, (input: unknown) => {
     if (input === null || input === undefined) return null;
 
     let list: unknown = input;
-    if (typeof list === 'string') {
+    if (typeof list === "string") {
       try {
         list = JSON.parse(list);
       } catch {
@@ -1424,14 +1424,14 @@ function registerJavascriptFunctions(
   });
 
   db.function(
-    'apoc_coll_sortnodes',
+    "apoc_coll_sortnodes",
     { deterministic: true },
     (input: unknown, specRaw: unknown) => {
       if (input === null || input === undefined) return null;
       if (specRaw === null || specRaw === undefined) return null;
 
       let list: unknown = input;
-      if (typeof list === 'string') {
+      if (typeof list === "string") {
         try {
           list = JSON.parse(list);
         } catch {
@@ -1441,17 +1441,17 @@ function registerJavascriptFunctions(
       if (!Array.isArray(list)) return null;
 
       const spec = String(specRaw);
-      const ascending = spec.startsWith('^');
+      const ascending = spec.startsWith("^");
       const key = ascending ? spec.slice(1) : spec;
       if (!key) return JSON.stringify(list);
 
       const out = [...(list as unknown[])].sort((a, b) => {
         const av =
-          a && typeof a === 'object'
+          a && typeof a === "object"
             ? (a as Record<string, unknown>)[key]
             : undefined;
         const bv =
-          b && typeof b === 'object'
+          b && typeof b === "object"
             ? (b as Record<string, unknown>)[key]
             : undefined;
         if (av === bv) return 0;
@@ -1466,7 +1466,7 @@ function registerJavascriptFunctions(
   );
 
   db.function(
-    'apoc_date_format',
+    "apoc_date_format",
     { deterministic: true, varargs: true },
     (...args: unknown[]) => {
       const value = args[0];
@@ -1477,36 +1477,36 @@ function registerJavascriptFunctions(
 
       let epoch = Number(value);
       if (!Number.isFinite(epoch)) return null;
-      const unit = unitRaw ?? 'ms';
-      if (unit === 's') epoch = epoch * 1000;
+      const unit = unitRaw ?? "ms";
+      if (unit === "s") epoch = epoch * 1000;
 
       const date = new Date(epoch);
       if (Number.isNaN(date.getTime())) return null;
 
-      const format = (formatRaw ?? 'yyyy-MM-dd') as string;
+      const format = (formatRaw ?? "yyyy-MM-dd") as string;
       const timezone =
-        timezoneRaw && typeof timezoneRaw === 'string' ? timezoneRaw : 'UTC';
+        timezoneRaw && typeof timezoneRaw === "string" ? timezoneRaw : "UTC";
 
       try {
-        const fmt = new Intl.DateTimeFormat('en-AU', {
+        const fmt = new Intl.DateTimeFormat("en-AU", {
           timeZone: timezone,
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
         });
         const parts = Object.fromEntries(
           fmt.formatToParts(date).map((p) => [p.type, p.value]),
         );
-        if (format === 'yyyy-MM') return `${parts.year}-${parts.month}`;
-        if (format === 'yyyy') return parts.year;
+        if (format === "yyyy-MM") return `${parts.year}-${parts.month}`;
+        if (format === "yyyy") return parts.year;
         return `${parts.year}-${parts.month}-${parts.day}`;
       } catch {
         // Fallback to UTC if timezone is invalid
-        const year = String(date.getUTCFullYear()).padStart(4, '0');
-        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-        const day = String(date.getUTCDate()).padStart(2, '0');
-        if (format === 'yyyy-MM') return `${year}-${month}`;
-        if (format === 'yyyy') return year;
+        const year = String(date.getUTCFullYear()).padStart(4, "0");
+        const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+        const day = String(date.getUTCDate()).padStart(2, "0");
+        if (format === "yyyy-MM") return `${year}-${month}`;
+        if (format === "yyyy") return year;
         return `${year}-${month}-${day}`;
       }
     },
@@ -1514,21 +1514,21 @@ function registerJavascriptFunctions(
 }
 
 export class GraphDatabase {
-  private db: import('better-sqlite3').Database;
+  private db: import("better-sqlite3").Database;
   private initialized: boolean = false;
-  private stmtCache: Map<string, import('better-sqlite3').Statement> =
+  private stmtCache: Map<string, import("better-sqlite3").Statement> =
     new Map();
   private readonly STMT_CACHE_MAX = 100;
 
-  constructor(path: string = ':memory:') {
+  constructor(path: string = ":memory:") {
     const Database = getBetterSqlite3();
     this.db = new Database(path);
-    this.db.pragma('journal_mode = WAL');
-    this.db.pragma('foreign_keys = ON');
-    this.db.pragma('synchronous = NORMAL'); // Safe with WAL, faster writes
-    this.db.pragma('cache_size = -64000'); // 64MB cache (default is 2MB)
-    this.db.pragma('temp_store = MEMORY'); // Temp tables in RAM
-    this.db.pragma('mmap_size = 268435456'); // 256MB memory-mapped I/O
+    this.db.pragma("journal_mode = WAL");
+    this.db.pragma("foreign_keys = ON");
+    this.db.pragma("synchronous = NORMAL"); // Safe with WAL, faster writes
+    this.db.pragma("cache_size = -64000"); // 64MB cache (default is 2MB)
+    this.db.pragma("temp_store = MEMORY"); // Temp tables in RAM
+    this.db.pragma("mmap_size = 268435456"); // 256MB memory-mapped I/O
     // Register custom Cypher functions
     registerCypherFunctions(this.db);
     // Register custom APOC-compatible functions
@@ -1549,7 +1549,7 @@ export class GraphDatabase {
    * Get a cached prepared statement, or create and cache a new one
    * Uses LRU eviction: recently accessed entries are moved to end of Map
    */
-  private getCachedStatement(sql: string): import('better-sqlite3').Statement {
+  private getCachedStatement(sql: string): import("better-sqlite3").Statement {
     let stmt = this.stmtCache.get(sql);
     if (stmt) {
       // Move to end for LRU (delete and re-add)
@@ -1582,30 +1582,30 @@ export class GraphDatabase {
       const trimmedSql = sql.trim().toUpperCase();
       // Check if it's a query (SELECT, WITH for CTEs, or EXPLAIN)
       const isQuery =
-        trimmedSql.startsWith('SELECT') ||
-        trimmedSql.startsWith('WITH') ||
-        trimmedSql.startsWith('EXPLAIN');
+        trimmedSql.startsWith("SELECT") ||
+        trimmedSql.startsWith("WITH") ||
+        trimmedSql.startsWith("EXPLAIN");
 
       if (isQuery) {
         const rows = stmt.all(...convertedParams) as Record<string, unknown>[];
-        if (process.env.LEANGRAPH_DEBUG_SQL === '1') {
-          console.log('[LeanGraph] SQL TEXT:\n' + sql);
+        if (process.env.LEANGRAPH_DEBUG_SQL === "1") {
+          console.log("[LeanGraph] SQL TEXT:\n" + sql);
           console.log(
-            '[LeanGraph] SQL PARAMS:',
+            "[LeanGraph] SQL PARAMS:",
             JSON.stringify(convertedParams),
           );
-          console.log('[LeanGraph] SQL ROWS:', rows.length);
+          console.log("[LeanGraph] SQL ROWS:", rows.length);
         }
         return { rows, changes: 0, lastInsertRowid: 0 };
       } else {
         const result = stmt.run(...convertedParams);
-        if (process.env.LEANGRAPH_DEBUG_SQL === '1') {
-          console.log('[LeanGraph] SQL TEXT:\n' + sql);
+        if (process.env.LEANGRAPH_DEBUG_SQL === "1") {
+          console.log("[LeanGraph] SQL TEXT:\n" + sql);
           console.log(
-            '[LeanGraph] SQL PARAMS:',
+            "[LeanGraph] SQL PARAMS:",
             JSON.stringify(convertedParams),
           );
-          console.log('[LeanGraph] SQL CHANGES:', result.changes);
+          console.log("[LeanGraph] SQL CHANGES:", result.changes);
         }
         return {
           rows: [],
@@ -1614,12 +1614,12 @@ export class GraphDatabase {
         };
       }
     } catch (error) {
-      if (process.env.LEANGRAPH_DEBUG_SQL_ERRORS === '1') {
+      if (process.env.LEANGRAPH_DEBUG_SQL_ERRORS === "1") {
         const message = error instanceof Error ? error.message : String(error);
-        console.error('[LeanGraph] SQL ERROR:', message);
-        console.error('[LeanGraph] SQL TEXT:\n' + sql);
+        console.error("[LeanGraph] SQL ERROR:", message);
+        console.error("[LeanGraph] SQL TEXT:\n" + sql);
         console.error(
-          '[LeanGraph] SQL PARAMS:',
+          "[LeanGraph] SQL PARAMS:",
           JSON.stringify(convertedParams),
         );
       }
@@ -1645,7 +1645,7 @@ export class GraphDatabase {
   ): void {
     // Normalize label to array format for storage
     const labelArray = Array.isArray(label) ? label : [label];
-    this.execute('INSERT INTO nodes (id, label, properties) VALUES (?, ?, ?)', [
+    this.execute("INSERT INTO nodes (id, label, properties) VALUES (?, ?, ?)", [
       id,
       JSON.stringify(labelArray),
       JSON.stringify(properties),
@@ -1663,7 +1663,7 @@ export class GraphDatabase {
     properties: Record<string, unknown> = {},
   ): void {
     this.execute(
-      'INSERT INTO edges (id, type, source_id, target_id, properties) VALUES (?, ?, ?, ?, ?)',
+      "INSERT INTO edges (id, type, source_id, target_id, properties) VALUES (?, ?, ?, ?, ?)",
       [id, type, sourceId, targetId, JSON.stringify(properties)],
     );
   }
@@ -1672,7 +1672,7 @@ export class GraphDatabase {
    * Get a node by ID
    */
   getNode(id: string): Node | null {
-    const result = this.execute('SELECT * FROM nodes WHERE id = ?', [id]);
+    const result = this.execute("SELECT * FROM nodes WHERE id = ?", [id]);
     if (result.rows.length === 0) return null;
 
     const row = result.rows[0] as unknown as NodeRow;
@@ -1688,7 +1688,7 @@ export class GraphDatabase {
    * Get an edge by ID
    */
   getEdge(id: string): Edge | null {
-    const result = this.execute('SELECT * FROM edges WHERE id = ?', [id]);
+    const result = this.execute("SELECT * FROM edges WHERE id = ?", [id]);
     if (result.rows.length === 0) return null;
 
     const row = result.rows[0] as unknown as EdgeRow;
@@ -1725,7 +1725,7 @@ export class GraphDatabase {
    * Get all edges with a given type
    */
   getEdgesByType(type: string): Edge[] {
-    const result = this.execute('SELECT * FROM edges WHERE type = ?', [type]);
+    const result = this.execute("SELECT * FROM edges WHERE type = ?", [type]);
     return result.rows.map((row) => {
       const r = row as unknown as EdgeRow;
       return {
@@ -1742,7 +1742,7 @@ export class GraphDatabase {
    * Delete a node by ID
    */
   deleteNode(id: string): boolean {
-    const result = this.execute('DELETE FROM nodes WHERE id = ?', [id]);
+    const result = this.execute("DELETE FROM nodes WHERE id = ?", [id]);
     return result.changes > 0;
   }
 
@@ -1750,7 +1750,7 @@ export class GraphDatabase {
    * Delete an edge by ID
    */
   deleteEdge(id: string): boolean {
-    const result = this.execute('DELETE FROM edges WHERE id = ?', [id]);
+    const result = this.execute("DELETE FROM edges WHERE id = ?", [id]);
     return result.changes > 0;
   }
 
@@ -1762,7 +1762,7 @@ export class GraphDatabase {
     properties: Record<string, unknown>,
   ): boolean {
     const result = this.execute(
-      'UPDATE nodes SET properties = ? WHERE id = ?',
+      "UPDATE nodes SET properties = ? WHERE id = ?",
       [JSON.stringify(properties), id],
     );
     return result.changes > 0;
@@ -1772,7 +1772,7 @@ export class GraphDatabase {
    * Count nodes
    */
   countNodes(): number {
-    const result = this.execute('SELECT COUNT(*) as count FROM nodes');
+    const result = this.execute("SELECT COUNT(*) as count FROM nodes");
     return (result.rows[0] as { count: number }).count;
   }
 
@@ -1780,7 +1780,7 @@ export class GraphDatabase {
    * Count edges
    */
   countEdges(): number {
-    const result = this.execute('SELECT COUNT(*) as count FROM edges');
+    const result = this.execute("SELECT COUNT(*) as count FROM edges");
     return (result.rows[0] as { count: number }).count;
   }
 
@@ -1814,7 +1814,7 @@ export class DatabaseManager {
   private databases: Map<string, GraphDatabase> = new Map();
   private basePath: string;
 
-  constructor(basePath: string = ':memory:') {
+  constructor(basePath: string = ":memory:") {
     this.basePath = basePath;
   }
 
@@ -1827,8 +1827,8 @@ export class DatabaseManager {
     if (!this.databases.has(project)) {
       let dbPath: string;
 
-      if (this.basePath === ':memory:') {
-        dbPath = ':memory:';
+      if (this.basePath === ":memory:") {
+        dbPath = ":memory:";
       } else {
         // Resolve paths to prevent traversal
         const resolvedBase = nodePath.resolve(this.basePath);
