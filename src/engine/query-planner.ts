@@ -1,7 +1,7 @@
 /**
  * Query Planner - Analyzes Cypher AST to determine if a query
  * can use the hybrid execution engine.
- * 
+ *
  * Supports generalized pattern chains with:
  *   - N nodes (arbitrary chain length)
  *   - Multiple variable-length edges
@@ -17,9 +17,9 @@ import {
   RelationshipPattern,
   Expression,
   PropertyValue,
-} from "../parser.js";
-import { PatternChainParams, ChainHop, ChainNode } from "./hybrid-executor.js";
-import { MemoryNode, Direction } from "./memory-graph.js";
+} from '../parser';
+import { PatternChainParams, ChainHop, ChainNode } from './hybrid-executor';
+import { MemoryNode, Direction } from './memory-graph';
 
 /** Default max depth for unbounded variable-length paths */
 const DEFAULT_MAX_DEPTH = 50;
@@ -36,86 +36,109 @@ export interface HybridAnalysisResult {
 /**
  * Analyze a parsed query to determine if it can use the hybrid executor.
  * Returns extracted parameters if suitable, or a reason if not.
- * 
+ *
  * Supports generalized pattern chains:
  *   (a)-[*]->(b)-[:R1]->(c)-[:R2]->(d)  -- N nodes
  *   (a)-[*]->(b)-[*]->(c)               -- multiple var-length
  */
 export function analyzeForHybrid(
   query: Query,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
 ): HybridAnalysisResult {
   if (!isHybridCompatiblePattern(query)) {
-    return { suitable: false, reason: "Query pattern not compatible with hybrid execution" };
+    return {
+      suitable: false,
+      reason: 'Query pattern not compatible with hybrid execution',
+    };
   }
 
   // Extract the MATCH clause
-  const matchClause = query.clauses.find((c) => c.type === "MATCH") as MatchClause;
+  const matchClause = query.clauses.find(
+    (c) => c.type === 'MATCH',
+  ) as MatchClause;
   if (!matchClause) {
-    return { suitable: false, reason: "No MATCH clause found" };
+    return { suitable: false, reason: 'No MATCH clause found' };
   }
 
   // Get the relationship patterns
   const relPatterns = matchClause.patterns.filter(
-    (p): p is RelationshipPattern => "edge" in p
+    (p): p is RelationshipPattern => 'edge' in p,
   );
 
   if (relPatterns.length < 1) {
-    return { suitable: false, reason: "Need at least 1 relationship pattern" };
+    return { suitable: false, reason: 'Need at least 1 relationship pattern' };
   }
 
   // Extract anchor node info (first node in the pattern)
   const anchorInfo = extractNodeInfo(relPatterns[0].source, params);
   if (!anchorInfo) {
-    return { suitable: false, reason: "Anchor node must have a label" };
+    return { suitable: false, reason: 'Anchor node must have a label' };
   }
 
-  const anchorVar = relPatterns[0].source.variable || "node0";
+  const anchorVar = relPatterns[0].source.variable || 'node0';
 
   // Build the chain from relationship patterns
   const chain: Array<{ hop: ChainHop; node: ChainNode }> = [];
-  
+
   // Track which variable the WHERE clause applies to (for now: single node)
   let filterTargetVar: string | null = null;
   let filterTargetIndex: number = -1;
-  
+
   // Find which node the WHERE clause references (if any)
   if (matchClause.where) {
     filterTargetVar = findWhereTargetVar(matchClause.where, relPatterns);
+    // If a WHERE clause is present but we cannot map it to exactly one pattern
+    // variable, hybrid execution cannot safely preserve semantics.
+    // Fall back to SQL translation rather than dropping the filter.
+    if (!filterTargetVar) {
+      return {
+        suitable: false,
+        reason:
+          'WHERE clause references unsupported expressions or multiple variables',
+      };
+    }
   }
 
   for (let i = 0; i < relPatterns.length; i++) {
     const rel = relPatterns[i];
-    
+
     // Extract edge info
     const edge = rel.edge;
-    const isVarLength = edge.minHops !== undefined || edge.maxHops !== undefined;
-    
+    const isVarLength =
+      edge.minHops !== undefined || edge.maxHops !== undefined;
+
     const hop: ChainHop = {
       edgeType: edge.type || null,
       direction: edgeDirectionToDirection(edge.direction),
-      minHops: isVarLength ? (edge.minHops ?? 1) : 1,
-      maxHops: isVarLength ? (edge.maxHops ?? DEFAULT_MAX_DEPTH) : 1,
+      minHops: isVarLength ? edge.minHops ?? 1 : 1,
+      maxHops: isVarLength ? edge.maxHops ?? DEFAULT_MAX_DEPTH : 1,
     };
 
     // Extract target node info
     const targetInfo = extractNodeInfo(rel.target, params);
     if (!targetInfo) {
-      return { suitable: false, reason: `Node at position ${i + 1} must have a label` };
+      return {
+        suitable: false,
+        reason: `Node at position ${i + 1} must have a label`,
+      };
     }
 
     const targetVar = rel.target.variable || `node${i + 1}`;
-    
+
     // Check if this is the node WHERE applies to
-    const whereFilter = (filterTargetVar === targetVar)
-      ? convertWhereToFilter(matchClause.where, targetVar, params)
-      : undefined;
-    
+    const whereFilter =
+      filterTargetVar === targetVar
+        ? convertWhereToFilter(matchClause.where, targetVar, params)
+        : undefined;
+
     // If WHERE references this node but couldn't be converted, fail
     if (filterTargetVar === targetVar && whereFilter === null) {
-      return { suitable: false, reason: "WHERE clause uses unsupported expressions" };
+      return {
+        suitable: false,
+        reason: 'WHERE clause uses unsupported expressions',
+      };
     }
-    
+
     if (filterTargetVar === targetVar) {
       filterTargetIndex = i;
     }
@@ -123,7 +146,7 @@ export function analyzeForHybrid(
     // Build filter from inline properties and/or WHERE clause
     const inlineProps = targetInfo.properties;
     const hasInlineProps = Object.keys(inlineProps).length > 0;
-    
+
     let nodeFilter: ((node: MemoryNode) => boolean) | undefined;
     if (hasInlineProps && whereFilter) {
       // Combine inline property filter with WHERE filter
@@ -155,21 +178,91 @@ export function analyzeForHybrid(
   }
 
   // If WHERE references a node that's not in the chain (e.g., anchor), fail for now
-  if (matchClause.where && filterTargetVar && filterTargetIndex === -1 && filterTargetVar !== anchorVar) {
-    return { suitable: false, reason: "WHERE clause references node not in chain or unsupported" };
+  if (
+    matchClause.where &&
+    filterTargetVar &&
+    filterTargetIndex === -1 &&
+    filterTargetVar !== anchorVar
+  ) {
+    return {
+      suitable: false,
+      reason: 'WHERE clause references node not in chain or unsupported',
+    };
+  }
+
+  // Build the anchor ChainNode, applying WHERE filter if it targets the anchor
+  const anchorChainNode: ChainNode = {
+    variable: anchorVar,
+    label: anchorInfo.label,
+  };
+
+  const anchorProps = { ...anchorInfo.properties };
+
+  if (matchClause.where && filterTargetVar === anchorVar) {
+    // Extract simple equality conditions into anchorProps for efficient SQL-level lookup
+    const equalities = extractEqualityProperties(
+      matchClause.where,
+      anchorVar,
+      params,
+    );
+    Object.assign(anchorProps, equalities);
+
+    // Also add an in-memory filter for correctness (handles non-equality conditions)
+    const anchorFilter = convertWhereToFilter(
+      matchClause.where,
+      anchorVar,
+      params,
+    );
+    if (anchorFilter) {
+      anchorChainNode.filter = anchorFilter;
+    }
   }
 
   return {
     suitable: true,
     params: {
-      anchor: {
-        variable: anchorVar,
-        label: anchorInfo.label,
-      },
-      anchorProps: anchorInfo.properties,
+      anchor: anchorChainNode,
+      anchorProps,
       chain,
     },
   };
+}
+
+/**
+ * Extract simple equality conditions (var.prop = value) from a WHERE clause
+ * for a specific variable, returning them as a property dictionary.
+ * Only handles AND-connected equalities — ignores OR/complex conditions.
+ */
+function extractEqualityProperties(
+  where: WhereCondition,
+  targetVar: string,
+  params: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  if (
+    where.type === 'comparison' &&
+    where.operator === '=' &&
+    where.left &&
+    where.right
+  ) {
+    const propInfo = extractPropertyAccess(where.left, targetVar);
+    if (propInfo) {
+      const value = extractLiteralValue(where.right, params);
+      if (value !== undefined) {
+        result[propInfo.property] = value;
+      }
+    }
+  } else if (where.type === 'and' && where.conditions) {
+    for (const condition of where.conditions) {
+      Object.assign(
+        result,
+        extractEqualityProperties(condition, targetVar, params),
+      );
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -178,7 +271,7 @@ export function analyzeForHybrid(
  */
 function findWhereTargetVar(
   where: WhereCondition,
-  relPatterns: RelationshipPattern[]
+  relPatterns: RelationshipPattern[],
 ): string | null {
   // Collect all variables from the pattern
   const allVars = new Set<string>();
@@ -196,24 +289,27 @@ function findWhereTargetVar(
   collectReferencedVars(where, referencedVars);
 
   // Filter to only include known pattern variables
-  const patternVars = [...referencedVars].filter(v => allVars.has(v));
-  
+  const patternVars = [...referencedVars].filter((v) => allVars.has(v));
+
   // We only support single-node WHERE for now
   if (patternVars.length === 1) {
     return patternVars[0];
   }
-  
+
   return null;
 }
 
 /**
  * Collect all variable names referenced in a WHERE condition.
  */
-function collectReferencedVars(condition: WhereCondition, vars: Set<string>): void {
-  if (condition.left?.type === "property" && condition.left.variable) {
+function collectReferencedVars(
+  condition: WhereCondition,
+  vars: Set<string>,
+): void {
+  if (condition.left?.type === 'property' && condition.left.variable) {
     vars.add(condition.left.variable);
   }
-  if (condition.right?.type === "property" && condition.right.variable) {
+  if (condition.right?.type === 'property' && condition.right.variable) {
     vars.add(condition.right.variable);
   }
   if (condition.conditions) {
@@ -227,40 +323,47 @@ function collectReferencedVars(condition: WhereCondition, vars: Set<string>): vo
  * Check if WHERE contains an equality filter on the anchor variable.
  * This indicates the anchor set will be small (good for hybrid).
  */
-function hasAnchorEqualityFilter(where: WhereCondition, anchorVar: string): boolean {
+function hasAnchorEqualityFilter(
+  where: WhereCondition,
+  anchorVar: string,
+): boolean {
   // Check if this condition is an equality comparison on the anchor
-  if (where.type === "comparison" && where.operator === "=") {
-    const leftIsAnchor = where.left?.type === "property" && where.left.variable === anchorVar;
-    const rightIsAnchor = where.right?.type === "property" && where.right.variable === anchorVar;
-    
+  if (where.type === 'comparison' && where.operator === '=') {
+    const leftIsAnchor =
+      where.left?.type === 'property' && where.left.variable === anchorVar;
+    const rightIsAnchor =
+      where.right?.type === 'property' && where.right.variable === anchorVar;
+
     // One side should be anchor property, other side should be a value/param
-    if (leftIsAnchor && where.right?.type !== "property") {
+    if (leftIsAnchor && where.right?.type !== 'property') {
       return true;
     }
-    if (rightIsAnchor && where.left?.type !== "property") {
+    if (rightIsAnchor && where.left?.type !== 'property') {
       return true;
     }
   }
-  
+
   // Check AND conditions (any equality filter is sufficient)
-  if (where.type === "and" && where.conditions) {
-    return where.conditions.some(c => hasAnchorEqualityFilter(c, anchorVar));
+  if (where.type === 'and' && where.conditions) {
+    return where.conditions.some((c) => hasAnchorEqualityFilter(c, anchorVar));
   }
-  
+
   return false;
 }
 
 /**
  * Convert edge direction from parser format to Direction type.
  */
-function edgeDirectionToDirection(direction: "left" | "right" | "none"): Direction {
+function edgeDirectionToDirection(
+  direction: 'left' | 'right' | 'none',
+): Direction {
   switch (direction) {
-    case "right":
-      return "out";
-    case "left":
-      return "in";
-    case "none":
-      return "both";
+    case 'right':
+      return 'out';
+    case 'left':
+      return 'in';
+    case 'none':
+      return 'both';
   }
 }
 
@@ -269,11 +372,20 @@ function edgeDirectionToDirection(direction: "left" | "right" | "none"): Directi
  */
 function hasAggregationFunction(expr: Expression | undefined): boolean {
   if (!expr) return false;
-  
-  if (expr.type === "function") {
-    const aggFunctions = ["count", "sum", "avg", "min", "max", "collect", "stdev", "stdevp"];
+
+  if (expr.type === 'function') {
+    const aggFunctions = [
+      'count',
+      'sum',
+      'avg',
+      'min',
+      'max',
+      'collect',
+      'stdev',
+      'stdevp',
+    ];
     // Check both name and functionName (parser uses different fields)
-    const funcName = (expr.name || expr.functionName || "").toLowerCase();
+    const funcName = (expr.name || expr.functionName || '').toLowerCase();
     if (aggFunctions.includes(funcName)) {
       return true;
     }
@@ -282,24 +394,26 @@ function hasAggregationFunction(expr: Expression | undefined): boolean {
       return expr.args.some((arg: Expression) => hasAggregationFunction(arg));
     }
   }
-  
+
   // Check for aggregation in nested expressions
-  if (expr.type === "binary") {
-    return hasAggregationFunction(expr.left) || hasAggregationFunction(expr.right);
+  if (expr.type === 'binary') {
+    return (
+      hasAggregationFunction(expr.left) || hasAggregationFunction(expr.right)
+    );
   }
-  
+
   return false;
 }
 
 /**
  * Check if a query's structure matches a hybrid-compatible pattern.
- * 
+ *
  * Supported patterns:
  *   (a:Label)-[*min..max]->(b:Label)-[:TYPE]->(c:Label)     -- original
  *   (a)-[*]->(b)-[:R1]->(c)-[:R2]->(d)                      -- longer chains
  *   (a)-[*]->(b)-[*]->(c)                                   -- multiple var-length
  *   (a)-[:R1]->(b)-[*]->(c)                                 -- var-length anywhere
- * 
+ *
  * Requirements:
  *   - No mutations (CREATE, SET, DELETE, MERGE)
  *   - Has RETURN clause
@@ -312,14 +426,16 @@ function hasAggregationFunction(expr: Expression | undefined): boolean {
 export function isHybridCompatiblePattern(query: Query): boolean {
   // Must not have mutations
   const hasMutations = query.clauses.some((c) =>
-    ["CREATE", "SET", "DELETE", "MERGE"].includes(c.type)
+    ['CREATE', 'SET', 'DELETE', 'MERGE'].includes(c.type),
   );
   if (hasMutations) {
     return false;
   }
 
   // Must have RETURN
-  const returnClause = query.clauses.find((c) => c.type === "RETURN") as ReturnClause | undefined;
+  const returnClause = query.clauses.find((c) => c.type === 'RETURN') as
+    | ReturnClause
+    | undefined;
   if (!returnClause) {
     return false;
   }
@@ -330,15 +446,17 @@ export function isHybridCompatiblePattern(query: Query): boolean {
   }
 
   // Must not have aggregation functions in RETURN (not supported in hybrid)
-  const hasAggregation = returnClause.items.some((item) => 
-    hasAggregationFunction(item.expression)
+  const hasAggregation = returnClause.items.some((item) =>
+    hasAggregationFunction(item.expression),
   );
   if (hasAggregation) {
     return false;
   }
 
   // Must have exactly one MATCH clause
-  const matchClauses = query.clauses.filter((c) => c.type === "MATCH" || c.type === "OPTIONAL_MATCH");
+  const matchClauses = query.clauses.filter(
+    (c) => c.type === 'MATCH' || c.type === 'OPTIONAL_MATCH',
+  );
   if (matchClauses.length !== 1) {
     return false;
   }
@@ -347,7 +465,7 @@ export function isHybridCompatiblePattern(query: Query): boolean {
 
   // Get relationship patterns
   const relPatterns = matchClause.patterns.filter(
-    (p): p is RelationshipPattern => "edge" in p
+    (p): p is RelationshipPattern => 'edge' in p,
   );
 
   // Must have at least 1 relationship pattern
@@ -357,31 +475,32 @@ export function isHybridCompatiblePattern(query: Query): boolean {
 
   // Suitable for hybrid if has at least one variable-length edge
   const hasVarLength = relPatterns.some(
-    (rel) => rel.edge.minHops !== undefined || rel.edge.maxHops !== undefined
+    (rel) => rel.edge.minHops !== undefined || rel.edge.maxHops !== undefined,
   );
-  
+
   // Multi-hop fixed-length patterns (2+ hops) benefit from hybrid ONLY if
   // the anchor node is filtered (otherwise SQL join is more efficient)
   const isMultiHop = relPatterns.length >= 2;
-  
+
   if (!hasVarLength && !isMultiHop) {
     return false;
   }
-  
+
   // For multi-hop without var-length, require anchor filtering
   if (isMultiHop && !hasVarLength) {
     const anchorNode = relPatterns[0].source;
     const anchorVar = anchorNode.variable;
-    
+
     // Check for inline property filter on anchor
-    const hasInlineFilter = anchorNode.properties && Object.keys(anchorNode.properties).length > 0;
-    
+    const hasInlineFilter =
+      anchorNode.properties && Object.keys(anchorNode.properties).length > 0;
+
     // Check for WHERE clause filtering anchor with equality
     let hasWhereFilter = false;
     if (matchClause.where && anchorVar) {
       hasWhereFilter = hasAnchorEqualityFilter(matchClause.where, anchorVar);
     }
-    
+
     if (!hasInlineFilter && !hasWhereFilter) {
       return false;
     }
@@ -389,7 +508,7 @@ export function isHybridCompatiblePattern(query: Query): boolean {
 
   // Must not have relationship property predicates (not supported in hybrid)
   const hasEdgeProperties = relPatterns.some(
-    (rel) => rel.edge.properties && Object.keys(rel.edge.properties).length > 0
+    (rel) => rel.edge.properties && Object.keys(rel.edge.properties).length > 0,
   );
   if (hasEdgeProperties) {
     return false;
@@ -403,7 +522,7 @@ export function isHybridCompatiblePattern(query: Query): boolean {
  */
 export function extractNodeInfo(
   node: NodePattern,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
 ): { label: string; properties: Record<string, unknown> } | null {
   // Must have at least one label
   if (!node.label) {
@@ -433,15 +552,20 @@ export function extractNodeInfo(
  */
 function resolvePropertyValue(
   value: PropertyValue,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
 ): unknown {
-  if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+  if (
+    value === null ||
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean'
+  ) {
     return value;
   }
 
-  if (typeof value === "object" && value !== null) {
-    if ("type" in value && value.type === "parameter") {
-      const paramRef = value as { type: "parameter"; name: string };
+  if (typeof value === 'object' && value !== null) {
+    if ('type' in value && value.type === 'parameter') {
+      const paramRef = value as { type: 'parameter'; name: string };
       return params[paramRef.name];
     }
   }
@@ -457,7 +581,7 @@ function resolvePropertyValue(
 export function convertWhereToFilter(
   where: WhereCondition | undefined,
   middleVar: string,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
 ): ((node: MemoryNode) => boolean) | null {
   // No WHERE clause - return identity filter
   if (!where) {
@@ -473,27 +597,31 @@ export function convertWhereToFilter(
 function convertCondition(
   condition: WhereCondition,
   middleVar: string,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
 ): ((node: MemoryNode) => boolean) | null {
   switch (condition.type) {
-    case "comparison":
+    case 'comparison':
       return convertComparison(condition, middleVar, params);
 
-    case "and": {
+    case 'and': {
       if (!condition.conditions) return null;
-      const filters = condition.conditions.map((c) => convertCondition(c, middleVar, params));
+      const filters = condition.conditions.map((c) =>
+        convertCondition(c, middleVar, params),
+      );
       if (filters.some((f) => f === null)) return null;
       return (node) => filters.every((f) => f!(node));
     }
 
-    case "or": {
+    case 'or': {
       if (!condition.conditions) return null;
-      const filters = condition.conditions.map((c) => convertCondition(c, middleVar, params));
+      const filters = condition.conditions.map((c) =>
+        convertCondition(c, middleVar, params),
+      );
       if (filters.some((f) => f === null)) return null;
       return (node) => filters.some((f) => f!(node));
     }
 
-    case "isNotNull": {
+    case 'isNotNull': {
       const propInfo = extractPropertyAccess(condition.left, middleVar);
       if (!propInfo) return null;
       return (node) => {
@@ -502,7 +630,7 @@ function convertCondition(
       };
     }
 
-    case "isNull": {
+    case 'isNull': {
       const propInfo = extractPropertyAccess(condition.left, middleVar);
       if (!propInfo) return null;
       return (node) => {
@@ -523,7 +651,7 @@ function convertCondition(
 function convertComparison(
   condition: WhereCondition,
   middleVar: string,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
 ): ((node: MemoryNode) => boolean) | null {
   if (!condition.left || !condition.right || !condition.operator) {
     return null;
@@ -557,11 +685,15 @@ function convertComparison(
  */
 function extractPropertyAccess(
   expr: Expression | undefined,
-  targetVar: string
+  targetVar: string,
 ): { variable: string; property: string } | null {
   if (!expr) return null;
 
-  if (expr.type === "property" && expr.variable === targetVar && expr.property) {
+  if (
+    expr.type === 'property' &&
+    expr.variable === targetVar &&
+    expr.property
+  ) {
     return { variable: expr.variable, property: expr.property };
   }
 
@@ -574,20 +706,20 @@ function extractPropertyAccess(
  */
 function extractLiteralValue(
   expr: Expression | undefined,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
 ): unknown {
   if (!expr) return undefined;
 
-  if (expr.type === "literal") {
+  if (expr.type === 'literal') {
     return expr.value;
   }
 
-  if (expr.type === "parameter" && expr.name) {
+  if (expr.type === 'parameter' && expr.name) {
     return params[expr.name];
   }
 
   // Check for property access on a different node (not supported)
-  if (expr.type === "property") {
+  if (expr.type === 'property') {
     return undefined;
   }
 
@@ -599,21 +731,21 @@ function extractLiteralValue(
  */
 function compareValues(
   left: unknown,
-  operator: "=" | "<>" | "<" | ">" | "<=" | ">=",
-  right: unknown
+  operator: '=' | '<>' | '<' | '>' | '<=' | '>=',
+  right: unknown,
 ): boolean {
   switch (operator) {
-    case "=":
+    case '=':
       return left === right;
-    case "<>":
+    case '<>':
       return left !== right;
-    case "<":
+    case '<':
       return (left as number) < (right as number);
-    case ">":
+    case '>':
       return (left as number) > (right as number);
-    case "<=":
+    case '<=':
       return (left as number) <= (right as number);
-    case ">=":
+    case '>=':
       return (left as number) >= (right as number);
     default:
       return false;

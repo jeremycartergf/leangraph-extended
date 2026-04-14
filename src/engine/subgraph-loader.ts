@@ -4,8 +4,13 @@
  * recursive CTEs for subgraph extraction.
  */
 
-import { GraphDatabase, NodeRow, EdgeRow } from "../db.js";
-import { MemoryGraph, Direction, NodeRow as MemNodeRow, EdgeRow as MemEdgeRow } from "./memory-graph.js";
+import { GraphDatabase, NodeRow, EdgeRow } from '../db';
+import {
+  MemoryGraph,
+  Direction,
+  NodeRow as MemNodeRow,
+  EdgeRow as MemEdgeRow,
+} from './memory-graph';
 
 export interface SubgraphBounds {
   /** Starting node IDs for subgraph expansion */
@@ -69,7 +74,7 @@ export class SubgraphLoader {
       anchorNodeIds,
       maxDepth,
       edgeTypes,
-      direction
+      direction,
     );
 
     if (nodeIds.size === 0) {
@@ -79,13 +84,13 @@ export class SubgraphLoader {
     // Bulk fetch nodes (in batches to avoid SQLite variable limit)
     const nodeIdArray = Array.from(nodeIds);
     const nodeRows: MemNodeRow[] = [];
-    
+
     for (let i = 0; i < nodeIdArray.length; i += SQL_VARIABLE_BATCH_SIZE) {
       const batch = nodeIdArray.slice(i, i + SQL_VARIABLE_BATCH_SIZE);
-      const placeholders = batch.map(() => "?").join(",");
+      const placeholders = batch.map(() => '?').join(',');
       const result = this.db.execute(
         `SELECT id, label, properties FROM nodes WHERE id IN (${placeholders})`,
-        batch
+        batch,
       );
       for (const row of result.rows) {
         const r = row as unknown as NodeRow;
@@ -96,16 +101,16 @@ export class SubgraphLoader {
     // Bulk fetch edges between loaded nodes (in batches)
     // Use temp table approach for large sets to avoid O(n^2) batching
     const edgeRows: MemEdgeRow[] = [];
-    
+
     if (nodeIdArray.length <= SQL_VARIABLE_BATCH_SIZE) {
       // Small set: simple IN clause
-      const placeholders = nodeIdArray.map(() => "?").join(",");
+      const placeholders = nodeIdArray.map(() => '?').join(',');
       const result = this.db.execute(
         `SELECT id, type, source_id, target_id, properties 
          FROM edges 
          WHERE source_id IN (${placeholders}) 
            AND target_id IN (${placeholders})`,
-        [...nodeIdArray, ...nodeIdArray]
+        [...nodeIdArray, ...nodeIdArray],
       );
       for (const row of result.rows) {
         const r = row as unknown as EdgeRow;
@@ -119,26 +124,29 @@ export class SubgraphLoader {
       }
     } else {
       // Large set: use temp table to avoid variable limit
-      this.db.execute(`CREATE TEMP TABLE IF NOT EXISTS _subgraph_nodes (id TEXT PRIMARY KEY)`, []);
+      this.db.execute(
+        `CREATE TEMP TABLE IF NOT EXISTS _subgraph_nodes (id TEXT PRIMARY KEY)`,
+        [],
+      );
       this.db.execute(`DELETE FROM _subgraph_nodes`, []);
-      
+
       // Insert node IDs in batches
       for (let i = 0; i < nodeIdArray.length; i += SQL_VARIABLE_BATCH_SIZE) {
         const batch = nodeIdArray.slice(i, i + SQL_VARIABLE_BATCH_SIZE);
-        const placeholders = batch.map(() => "(?)").join(",");
+        const placeholders = batch.map(() => '(?)').join(',');
         this.db.execute(
           `INSERT INTO _subgraph_nodes (id) VALUES ${placeholders}`,
-          batch
+          batch,
         );
       }
-      
+
       // Query edges using temp table join
       const result = this.db.execute(
         `SELECT e.id, e.type, e.source_id, e.target_id, e.properties 
          FROM edges e
          INNER JOIN _subgraph_nodes s ON e.source_id = s.id
          INNER JOIN _subgraph_nodes t ON e.target_id = t.id`,
-        []
+        [],
       );
       for (const row of result.rows) {
         const r = row as unknown as EdgeRow;
@@ -163,21 +171,18 @@ export class SubgraphLoader {
     anchorIds: string[],
     maxDepth: number,
     edgeTypes: string[] | null,
-    direction: Direction
+    direction: Direction,
   ): Set<string> {
     const reachable = new Set<string>();
     const visited = new Set<string>();
-    
+
     // Queue entries: [nodeId, currentDepth]
     const queue: [string, number][] = [];
 
     // Initialize with anchor nodes
     for (const id of anchorIds) {
       // Verify anchor exists
-      const exists = this.db.execute(
-        "SELECT 1 FROM nodes WHERE id = ?",
-        [id]
-      );
+      const exists = this.db.execute('SELECT 1 FROM nodes WHERE id = ?', [id]);
       if (exists.rows.length > 0) {
         queue.push([id, 0]);
         visited.add(id);
@@ -186,10 +191,10 @@ export class SubgraphLoader {
     }
 
     // Build edge type filter for SQL
-    let edgeTypeFilter = "";
+    let edgeTypeFilter = '';
     const edgeTypeParams: string[] = [];
     if (edgeTypes !== null && edgeTypes.length > 0) {
-      const placeholders = edgeTypes.map(() => "?").join(",");
+      const placeholders = edgeTypes.map(() => '?').join(',');
       edgeTypeFilter = ` AND type IN (${placeholders})`;
       edgeTypeParams.push(...edgeTypes);
     }
@@ -205,7 +210,7 @@ export class SubgraphLoader {
       // Get neighbor IDs based on direction
       const neighborIds: string[] = [];
 
-      if (direction === "out" || direction === "both") {
+      if (direction === 'out' || direction === 'both') {
         const sql = `SELECT target_id FROM edges WHERE source_id = ?${edgeTypeFilter}`;
         const result = this.db.execute(sql, [nodeId, ...edgeTypeParams]);
         for (const row of result.rows) {
@@ -213,7 +218,7 @@ export class SubgraphLoader {
         }
       }
 
-      if (direction === "in" || direction === "both") {
+      if (direction === 'in' || direction === 'both') {
         const sql = `SELECT source_id FROM edges WHERE target_id = ?${edgeTypeFilter}`;
         const result = this.db.execute(sql, [nodeId, ...edgeTypeParams]);
         for (const row of result.rows) {

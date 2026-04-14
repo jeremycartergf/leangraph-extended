@@ -1,7 +1,7 @@
 // API Key Authentication for LeanGraph
 
-import { Context, Next } from "hono";
-import { randomBytes } from "node:crypto";
+import { Context, Next } from 'hono';
+import { randomBytes } from 'node:crypto';
 
 // ============================================================================
 // Types
@@ -70,7 +70,7 @@ export class ApiKeyStore {
 
     for (const [key, config] of this.keys) {
       result.push({
-        prefix: key.slice(0, 4) + "...",
+        prefix: key.slice(0, 4) + '...',
         project: config.project,
         admin: config.admin,
       });
@@ -113,31 +113,31 @@ export function authMiddleware(store: ApiKeyStore) {
     const path = c.req.path;
 
     // Skip auth for health endpoints
-    if (path === "/health" || path === "/api/health") {
+    if (path === '/health' || path === '/api/health') {
       return next();
     }
 
     // Get authorization header
-    const authHeader = c.req.header("Authorization");
+    const authHeader = c.req.header('Authorization');
 
     if (!authHeader) {
       return c.json(
         {
           success: false,
-          error: { message: "Missing Authorization header" },
+          error: { message: 'Missing Authorization header' },
         },
-        401
+        401,
       );
     }
 
     // Check Bearer format
-    if (!authHeader.startsWith("Bearer ")) {
+    if (!authHeader.startsWith('Bearer ')) {
       return c.json(
         {
           success: false,
-          error: { message: "Authorization header must use Bearer scheme" },
+          error: { message: 'Authorization header must use Bearer scheme' },
         },
-        401
+        401,
       );
     }
 
@@ -148,26 +148,26 @@ export function authMiddleware(store: ApiKeyStore) {
       return c.json(
         {
           success: false,
-          error: { message: "Invalid API key" },
+          error: { message: 'Invalid API key' },
         },
-        401
+        401,
       );
     }
 
     // Check admin access for /admin endpoints
-    if (path.startsWith("/admin") && !validation.admin) {
+    if (path.startsWith('/admin') && !validation.admin) {
       return c.json(
         {
           success: false,
-          error: { message: "Admin access required for this endpoint" },
+          error: { message: 'Admin access required for this endpoint' },
         },
-        403
+        403,
       );
     }
 
     // Check project restrictions for query endpoints
-    if (path.startsWith("/query/")) {
-      const parts = path.split("/");
+    if (path.startsWith('/query/')) {
+      const parts = path.split('/');
       const project = parts[2];
 
       // Check project restriction
@@ -177,13 +177,13 @@ export function authMiddleware(store: ApiKeyStore) {
             success: false,
             error: { message: `Access denied for project: ${project}` },
           },
-          403
+          403,
         );
       }
     }
 
     // Store validation result in context for later use
-    c.set("auth", validation);
+    c.set('auth', validation);
 
     return next();
   };
@@ -195,5 +195,5 @@ export function authMiddleware(store: ApiKeyStore) {
 
 export function generateApiKey(): string {
   // Use cryptographically secure random bytes instead of Math.random()
-  return randomBytes(32).toString("base64url");
+  return randomBytes(32).toString('base64url');
 }

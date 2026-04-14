@@ -1,9 +1,9 @@
 // LeanGraph - Unified Package
 // A lightweight graph database with Cypher query support, powered by SQLite.
 
-import { createRemoteClient } from "./remote.js";
-import type { LeanGraphOptions, LeanGraphClient } from "./types.js";
-import pkg from "../package.json";
+import { createRemoteClient } from './remote';
+import type { LeanGraphOptions, LeanGraphClient } from './types';
+import pkg = require('../package.json');
 
 // ============================================================================
 // Re-export Types
@@ -15,16 +15,16 @@ export type {
   QueryResponse,
   HealthResponse,
   NodeResult,
-} from "./types.js";
+} from './types';
 
-export { LeanGraphError } from "./types.js";
+export { LeanGraphError } from './types';
 
 // ============================================================================
 // Re-export Server Components (for advanced usage)
 // ============================================================================
 
 // Parser
-export { parse } from "./parser.js";
+export { parse } from './parser';
 export type {
   Query,
   Clause,
@@ -43,38 +43,38 @@ export type {
   ParameterRef,
   ParseResult,
   ParseError,
-} from "./parser.js";
+} from './parser';
 
 // Translator
-export { translate, Translator } from "./translator.js";
-export type { SqlStatement, TranslationResult } from "./translator.js";
+export { translate, Translator } from './translator';
+export type { SqlStatement, TranslationResult } from './translator';
 
 // Database
-export { GraphDatabase, DatabaseManager } from "./db.js";
-export type { Node, Edge, NodeRow, EdgeRow, QueryResult } from "./db.js";
+export { GraphDatabase, DatabaseManager } from './db';
+export type { Node, Edge, NodeRow, EdgeRow, QueryResult } from './db';
 
 // Executor
-export { Executor, executeQuery } from "./executor.js";
+export { Executor, executeQuery } from './executor';
 export type {
   ExecutionResult,
   ExecutionError,
   QueryResponse as ServerQueryResponse,
-} from "./executor.js";
+} from './executor';
 
 // Routes / Server
-export { createApp, createServer } from "./routes.js";
-export type { QueryRequest, ServerOptions } from "./routes.js";
+export { createApp, createServer } from './routes';
+export type { QueryRequest, ServerOptions } from './routes';
 
 // Backup
-export { BackupManager } from "./backup.js";
-export type { BackupResult, BackupStatus, BackupAllOptions } from "./backup.js";
+export { BackupManager } from './backup';
+export type { BackupResult, BackupStatus, BackupAllOptions } from './backup';
 
 // Auth
-export { ApiKeyStore, authMiddleware, generateApiKey } from "./auth.js";
-export type { ApiKeyConfig, ValidationResult, KeyInfo } from "./auth.js";
+export { ApiKeyStore, authMiddleware, generateApiKey } from './auth';
+export type { ApiKeyConfig, ValidationResult, KeyInfo } from './auth';
 
 // Hybrid Engine (experimental)
-export { MemoryGraph, SubgraphLoader, HybridExecutor } from "./engine/index.js";
+export { MemoryGraph, SubgraphLoader, HybridExecutor } from './engine/index';
 export type {
   Direction,
   Path,
@@ -84,7 +84,7 @@ export type {
   PropertyFilter,
   VarLengthPatternParams,
   PatternResult,
-} from "./engine/index.js";
+} from './engine/index';
 
 // ============================================================================
 // Version
@@ -111,21 +111,26 @@ export const VERSION: string = pkg.version;
  * db.close();
  * ```
  */
-export async function LeanGraph(options: LeanGraphOptions = {}): Promise<LeanGraphClient> {
-  const mode = options.mode ?? (process.env.LEANGRAPH_MODE as "local" | "remote" | "test") ?? "local";
+export async function LeanGraph(
+  options: LeanGraphOptions = {},
+): Promise<LeanGraphClient> {
+  const mode =
+    options.mode ??
+    (process.env.LEANGRAPH_MODE as 'local' | 'remote' | 'test') ??
+    'local';
 
-  if (mode === "remote") {
+  if (mode === 'remote') {
     return createRemoteClient(options);
   } else {
     // local or test - lazy-load to avoid requiring better-sqlite3 when not needed
     try {
-      const { createLocalClient } = await import("./local.js");
+      const { createLocalClient } = await import('./local');
       return createLocalClient({ ...options, mode });
     } catch (err) {
-      if (err instanceof Error && err.message.includes("better-sqlite3")) {
+      if (err instanceof Error && err.message.includes('better-sqlite3')) {
         throw new Error(
-          "Local/test mode requires better-sqlite3. Install it with: npm install better-sqlite3\n" +
-          "Or set LEANGRAPH_MODE=remote to use remote mode instead."
+          'Local/test mode requires better-sqlite3. Install it with: npm install better-sqlite3\n' +
+            'Or set LEANGRAPH_MODE=remote to use remote mode instead.',
         );
       }
       throw err;

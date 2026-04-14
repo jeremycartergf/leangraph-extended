@@ -1,8 +1,8 @@
 // Backup System for LeanGraph
 // Uses SQLite's backup API for hot (online) backups
 
-import * as fs from "fs";
-import * as path from "path";
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Lazy-loaded better-sqlite3 to avoid requiring it in remote mode
 let BetterSqlite3: unknown | null = null;
@@ -14,11 +14,11 @@ let BetterSqlite3: unknown | null = null;
 function getBetterSqlite3(): any {
   if (BetterSqlite3 === null) {
     try {
-      BetterSqlite3 = require("better-sqlite3");
+      BetterSqlite3 = require('better-sqlite3');
     } catch (err) {
       throw new Error(
-        "better-sqlite3 is not installed. Install it with: npm install better-sqlite3\n" +
-        "Note: better-sqlite3 is only required for local/test mode. Remote mode does not need it."
+        'better-sqlite3 is not installed. Install it with: npm install better-sqlite3\n' +
+          'Note: better-sqlite3 is only required for local/test mode. Remote mode does not need it.',
       );
     }
   }
@@ -66,7 +66,10 @@ export class BackupManager {
    * Create a backup of a single database file using SQLite's backup API.
    * This is a "hot" backup - it works even if the database is open and in use.
    */
-  async backupDatabase(sourcePath: string, project: string): Promise<BackupResult> {
+  async backupDatabase(
+    sourcePath: string,
+    project: string,
+  ): Promise<BackupResult> {
     const startTime = Date.now();
 
     // Check source exists
@@ -86,8 +89,8 @@ export class BackupManager {
 
     // Generate backup filename with timestamp (including milliseconds for uniqueness)
     const now = new Date();
-    const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const ms = now.getMilliseconds().toString().padStart(3, "0");
+    const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const ms = now.getMilliseconds().toString().padStart(3, '0');
     const backupFilename = `${project}_${timestamp}-${ms}.db`;
     const backupPath = path.join(this.backupDir, backupFilename);
 
@@ -95,7 +98,7 @@ export class BackupManager {
       // Use SQLite's backup API via better-sqlite3
       const Database = getBetterSqlite3();
       const sourceDb = new Database(sourcePath, { readonly: true });
-      
+
       // backup() returns a Promise - wait for it to complete
       await sourceDb.backup(backupPath);
       sourceDb.close();
@@ -126,7 +129,7 @@ export class BackupManager {
    */
   async backupAll(
     dataDir: string,
-    _options: BackupAllOptions = {}
+    _options: BackupAllOptions = {},
   ): Promise<BackupResult[]> {
     const results: BackupResult[] = [];
 
@@ -134,10 +137,10 @@ export class BackupManager {
       return results;
     }
 
-    const files = fs.readdirSync(dataDir).filter((f) => f.endsWith(".db"));
+    const files = fs.readdirSync(dataDir).filter((f) => f.endsWith('.db'));
 
     for (const file of files) {
-      const project = file.replace(".db", "");
+      const project = file.replace('.db', '');
       const sourcePath = path.join(dataDir, file);
       const result = await this.backupDatabase(sourcePath, project);
       results.push(result);
@@ -154,8 +157,9 @@ export class BackupManager {
       return [];
     }
 
-    const files = fs.readdirSync(this.backupDir)
-      .filter(f => f.startsWith(`${project}_`) && f.endsWith(".db"))
+    const files = fs
+      .readdirSync(this.backupDir)
+      .filter((f) => f.startsWith(`${project}_`) && f.endsWith('.db'))
       .sort((a, b) => b.localeCompare(a)); // Descending order (newest first)
 
     return files;
@@ -167,7 +171,7 @@ export class BackupManager {
    */
   cleanOldBackups(project: string, keepCount: number): number {
     const backups = this.listBackups(project);
-    
+
     if (backups.length <= keepCount) {
       return 0;
     }
@@ -200,7 +204,9 @@ export class BackupManager {
       };
     }
 
-    const files = fs.readdirSync(this.backupDir).filter(f => f.endsWith(".db"));
+    const files = fs
+      .readdirSync(this.backupDir)
+      .filter((f) => f.endsWith('.db'));
     const projects = new Set<string>();
     let totalSizeBytes = 0;
     let oldestBackup: string | undefined;
@@ -240,11 +246,11 @@ export class BackupManager {
    */
   restoreBackup(backupFilename: string, targetPath: string): BackupResult {
     const backupPath = path.join(this.backupDir, backupFilename);
-    
+
     if (!fs.existsSync(backupPath)) {
       return {
         success: false,
-        project: "",
+        project: '',
         sourcePath: backupPath,
         error: `Backup not found: ${backupFilename}`,
       };
@@ -262,14 +268,14 @@ export class BackupManager {
 
       return {
         success: true,
-        project: "",
+        project: '',
         sourcePath: backupPath,
         backupPath: targetPath,
       };
     } catch (err) {
       return {
         success: false,
-        project: "",
+        project: '',
         sourcePath: backupPath,
         error: err instanceof Error ? err.message : String(err),
       };

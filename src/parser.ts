@@ -6,7 +6,8 @@
 
 export interface NodePattern {
   variable?: string;
-  label?: string | string[]; // Support both single label (backward compat) and multiple labels
+  label?: string | string[]; // Support both single label (backward compat) and multiple labels (AND conjunction)
+  labelOr?: string[]; // Label disjunction: (n:A|B) means n:A OR n:B
   properties?: Record<string, PropertyValue>;
   propertiesParam?: ParameterRef; // e.g., CREATE (n:Label $props)
 }
@@ -16,7 +17,7 @@ export interface EdgePattern {
   type?: string;
   types?: string[]; // For multiple relationship types: [:TYPE1|TYPE2]
   properties?: Record<string, PropertyValue>;
-  direction: "left" | "right" | "none";
+  direction: 'left' | 'right' | 'none';
   minHops?: number;
   maxHops?: number;
 }
@@ -28,43 +29,43 @@ export interface RelationshipPattern {
 }
 
 export interface PathExpression {
-  type: "path";
+  type: 'path';
   variable: string;
   patterns: (NodePattern | RelationshipPattern)[];
-  pathFunction?: "shortestPath" | "allShortestPaths"; // Path-finding functions
+  pathFunction?: 'shortestPath' | 'allShortestPaths'; // Path-finding functions
 }
 
 export interface ParameterRef {
-  type: "parameter";
+  type: 'parameter';
   name: string;
 }
 
 export interface VariableRef {
-  type: "variable";
+  type: 'variable';
   name: string;
 }
 
 export interface PropertyRef {
-  type: "property";
+  type: 'property';
   variable: string;
   property: string;
 }
 
 export interface BinaryPropertyValue {
-  type: "binary";
-  operator: "+" | "-" | "*" | "/" | "%" | "^";
+  type: 'binary';
+  operator: '+' | '-' | '*' | '/' | '%' | '^';
   left: PropertyValue;
   right: PropertyValue;
 }
 
 export interface FunctionPropertyValue {
-  type: "function";
+  type: 'function';
   name: string;
   args: PropertyValue[];
 }
 
 export interface MapPropertyValue {
-  type: "map";
+  type: 'map';
   properties: Record<string, PropertyValue>;
 }
 
@@ -82,10 +83,26 @@ export type PropertyValue =
   | PropertyValue[];
 
 export interface WhereCondition {
-  type: "comparison" | "and" | "or" | "not" | "contains" | "startsWith" | "endsWith" | "isNull" | "isNotNull" | "exists" | "in" | "listPredicate" | "patternMatch" | "expression" | "regex" | "propertyExists";
+  type:
+    | 'comparison'
+    | 'and'
+    | 'or'
+    | 'not'
+    | 'contains'
+    | 'startsWith'
+    | 'endsWith'
+    | 'isNull'
+    | 'isNotNull'
+    | 'exists'
+    | 'in'
+    | 'listPredicate'
+    | 'patternMatch'
+    | 'expression'
+    | 'regex'
+    | 'propertyExists';
   left?: Expression;
   right?: Expression;
-  operator?: "=" | "<>" | "<" | ">" | "<=" | ">=";
+  operator?: '=' | '<>' | '<' | '>' | '<=' | '>=';
   conditions?: WhereCondition[];
   condition?: WhereCondition;
   // For EXISTS pattern and pattern conditions
@@ -94,7 +111,7 @@ export interface WhereCondition {
   // For IN operator - the list of values
   list?: Expression;
   // For list predicates (ALL, ANY, NONE, SINGLE)
-  predicateType?: "ALL" | "ANY" | "NONE" | "SINGLE";
+  predicateType?: 'ALL' | 'ANY' | 'NONE' | 'SINGLE';
   variable?: string;
   listExpr?: Expression;
   filterCondition?: WhereCondition;
@@ -108,7 +125,7 @@ export interface CaseWhen {
 }
 
 export interface CaseExpression {
-  type: "case";
+  type: 'case';
   expression?: Expression; // For simple form: CASE expr WHEN val THEN ...
   whens: CaseWhen[];
   elseExpr?: Expression;
@@ -120,19 +137,45 @@ export interface ObjectProperty {
 }
 
 export interface MapProjectionItem {
-  type: "property" | "literal" | "allProperties"; // .prop, key: value, or .*
+  type: 'property' | 'literal' | 'allProperties'; // .prop, key: value, or .*
   property?: string; // The property name for .prop syntax
   key?: string; // The key for key: value syntax
   value?: Expression; // The value for key: value syntax
 }
 
 export interface Expression {
-  type: "property" | "literal" | "parameter" | "variable" | "function" | "case" | "binary" | "object" | "comparison" | "listComprehension" | "listPredicate" | "patternComprehension" | "unary" | "labelPredicate" | "propertyAccess" | "indexAccess" | "in" | "stringOp" | "existsPattern" | "sizePattern" | "reduce" | "filter" | "extract" | "mapProjection" | "regexMatch" | "list";
+  type:
+    | 'property'
+    | 'literal'
+    | 'parameter'
+    | 'variable'
+    | 'function'
+    | 'case'
+    | 'binary'
+    | 'object'
+    | 'comparison'
+    | 'listComprehension'
+    | 'listPredicate'
+    | 'patternComprehension'
+    | 'unary'
+    | 'labelPredicate'
+    | 'propertyAccess'
+    | 'indexAccess'
+    | 'in'
+    | 'stringOp'
+    | 'existsPattern'
+    | 'sizePattern'
+    | 'reduce'
+    | 'filter'
+    | 'extract'
+    | 'mapProjection'
+    | 'regexMatch'
+    | 'list';
   variable?: string;
   property?: string;
   value?: PropertyValue;
   raw?: string;
-  numberLiteralKind?: "integer" | "float";
+  numberLiteralKind?: 'integer' | 'float';
   name?: string;
   functionName?: string;
   args?: Expression[];
@@ -143,13 +186,21 @@ export interface Expression {
   whens?: CaseWhen[];
   elseExpr?: Expression;
   // Binary operation fields (arithmetic)
-  operator?: "+" | "-" | "*" | "/" | "%" | "^" | "AND" | "OR" | "XOR" | "NOT";
+  operator?: '+' | '-' | '*' | '/' | '%' | '^' | 'AND' | 'OR' | 'XOR' | 'NOT';
   left?: Expression;
   right?: Expression;
   // Unary operation fields
   operand?: Expression;
   // Comparison expression fields
-  comparisonOperator?: "=" | "<>" | "<" | ">" | "<=" | ">=" | "IS NULL" | "IS NOT NULL";
+  comparisonOperator?:
+    | '='
+    | '<>'
+    | '<'
+    | '>'
+    | '<='
+    | '>='
+    | 'IS NULL'
+    | 'IS NOT NULL';
   // Object literal fields
   properties?: ObjectProperty[];
   // List comprehension fields: [var IN listExpr WHERE filterCondition | mapExpr]
@@ -157,7 +208,7 @@ export interface Expression {
   filterCondition?: WhereCondition;
   mapExpr?: Expression;
   // List predicate fields: ALL/ANY/NONE/SINGLE(var IN list WHERE cond)
-  predicateType?: "ALL" | "ANY" | "NONE" | "SINGLE";
+  predicateType?: 'ALL' | 'ANY' | 'NONE' | 'SINGLE';
   // Pattern comprehension fields: [(pattern) WHERE filterCondition | mapExpr]
   // Or with named path: [p = (pattern) | p]
   patterns?: (NodePattern | RelationshipPattern)[];
@@ -174,7 +225,7 @@ export interface Expression {
   // IN expression fields: value IN list
   list?: Expression;
   // String operation fields: CONTAINS, STARTS WITH, ENDS WITH
-  stringOperator?: "CONTAINS" | "STARTS WITH" | "ENDS WITH";
+  stringOperator?: 'CONTAINS' | 'STARTS WITH' | 'ENDS WITH';
   // Reduce expression fields: reduce(acc = init, x IN list | expr)
   accumulator?: string;
   initialValue?: Expression;
@@ -201,28 +252,28 @@ export interface ReturnItem {
 
 export interface SetAssignment {
   variable: string;
-  property?: string;  // For property assignments: SET n.prop = value
+  property?: string; // For property assignments: SET n.prop = value
   value?: Expression;
-  labels?: string[];  // For label assignments: SET n:Label1:Label2
-  replaceProps?: boolean;  // For SET n = {props} - replace all properties
-  mergeProps?: boolean;    // For SET n += {props} - merge properties
+  labels?: string[]; // For label assignments: SET n:Label1:Label2
+  replaceProps?: boolean; // For SET n = {props} - replace all properties
+  mergeProps?: boolean; // For SET n += {props} - merge properties
 }
 
 // Clause types
 export interface CreateClause {
-  type: "CREATE";
+  type: 'CREATE';
   patterns: (NodePattern | RelationshipPattern)[];
 }
 
 export interface MatchClause {
-  type: "MATCH" | "OPTIONAL_MATCH";
+  type: 'MATCH' | 'OPTIONAL_MATCH';
   patterns: (NodePattern | RelationshipPattern)[];
   pathExpressions?: PathExpression[]; // Named paths: p = (a)-[r]->(b)
   where?: WhereCondition;
 }
 
 export interface MergeClause {
-  type: "MERGE";
+  type: 'MERGE';
   patterns: (NodePattern | RelationshipPattern)[];
   pathExpressions?: PathExpression[]; // Named paths: p = (a)-[r]->(b)
   onCreateSet?: SetAssignment[];
@@ -230,96 +281,98 @@ export interface MergeClause {
 }
 
 export interface SetClause {
-  type: "SET";
+  type: 'SET';
   assignments: SetAssignment[];
 }
 
 export interface DeleteClause {
-  type: "DELETE";
-  variables: string[];  // Simple variable names (backward compatible)
-  expressions?: Expression[];  // Complex expressions like friends[$index]
+  type: 'DELETE';
+  variables: string[]; // Simple variable names (backward compatible)
+  expressions?: Expression[]; // Complex expressions like friends[$index]
   detach?: boolean;
 }
 
 export interface RemoveItem {
   variable: string;
-  property?: string;  // For REMOVE n.prop
-  labels?: string[];  // For REMOVE n:Label1:Label2
+  property?: string; // For REMOVE n.prop
+  labels?: string[]; // For REMOVE n:Label1:Label2
 }
 
 export interface RemoveClause {
-  type: "REMOVE";
+  type: 'REMOVE';
   items: RemoveItem[];
 }
 
 export interface ReturnClause {
-  type: "RETURN";
+  type: 'RETURN';
   distinct?: boolean;
   items: ReturnItem[];
-  orderBy?: { expression: Expression; direction: "ASC" | "DESC" }[];
+  orderBy?: { expression: Expression; direction: 'ASC' | 'DESC' }[];
   skip?: Expression;
   limit?: Expression;
 }
 
 export interface WithClause {
-  type: "WITH";
+  type: 'WITH';
   distinct?: boolean;
   items: ReturnItem[];
-  orderBy?: { expression: Expression; direction: "ASC" | "DESC" }[];
+  orderBy?: { expression: Expression; direction: 'ASC' | 'DESC' }[];
   skip?: Expression;
   limit?: Expression;
   where?: WhereCondition;
 }
 
 export interface UnwindClause {
-  type: "UNWIND";
+  type: 'UNWIND';
   expression: Expression;
   alias: string;
 }
 
 export interface UnionClause {
-  type: "UNION";
+  type: 'UNION';
   all: boolean;
   left: Query;
   right: Query;
 }
 
 export interface CallClause {
-  type: "CALL";
+  type: 'CALL';
   procedure: string; // e.g., "db.labels", "db.relationshipTypes"
   args: Expression[]; // Arguments to the procedure
   yields?: string[]; // Variables to yield, e.g., ["label"] or ["type"]
   where?: WhereCondition; // Optional WHERE filter after YIELD
+  // `CALL { ... }` subquery form.
+  subquery?: Query;
 }
 
 export interface ForeachClause {
-  type: "FOREACH";
+  type: 'FOREACH';
   variable: string; // The iteration variable
   expression: Expression; // The list to iterate over
   body: Clause[]; // The clauses to execute for each item
 }
 
 export interface CreateIndexClause {
-  type: "CREATE_INDEX";
+  type: 'CREATE_INDEX';
   property: string; // The property to index
   indexName: string | null; // Optional custom index name
 }
 
 export interface DropIndexClause {
-  type: "DROP_INDEX";
+  type: 'DROP_INDEX';
   indexName: string; // The index name to drop
 }
 
 export interface CreateConstraintClause {
-  type: "CREATE_CONSTRAINT";
+  type: 'CREATE_CONSTRAINT';
   constraintName: string | null; // Optional custom name
   label: string; // The node label
   property: string; // The property to constrain
-  constraintType: "unique"; // Currently only unique constraints supported
+  constraintType: 'unique'; // Currently only unique constraints supported
 }
 
 export interface DropConstraintClause {
-  type: "DROP_CONSTRAINT";
+  type: 'DROP_CONSTRAINT';
   constraintName: string; // The constraint name to drop
 }
 
@@ -363,105 +416,105 @@ export type ParseResult =
 // ============================================================================
 
 type TokenType =
-  | "KEYWORD"
-  | "IDENTIFIER"
-  | "STRING"
-  | "NUMBER"
-  | "PARAMETER"
-  | "LPAREN"
-  | "RPAREN"
-  | "LBRACKET"
-  | "RBRACKET"
-  | "LBRACE"
-  | "RBRACE"
-  | "COLON"
-  | "COMMA"
-  | "DOT"
-  | "ARROW_LEFT"
-  | "ARROW_RIGHT"
-  | "DASH"
-  | "PLUS"
-  | "SLASH"
-  | "PERCENT"
-  | "CARET"
-  | "EQUALS"
-  | "NOT_EQUALS"
-  | "LT"
-  | "GT"
-  | "LTE"
-  | "GTE"
-  | "REGEX_MATCH"
-  | "STAR"
-  | "PIPE"
-  | "EOF";
+  | 'KEYWORD'
+  | 'IDENTIFIER'
+  | 'STRING'
+  | 'NUMBER'
+  | 'PARAMETER'
+  | 'LPAREN'
+  | 'RPAREN'
+  | 'LBRACKET'
+  | 'RBRACKET'
+  | 'LBRACE'
+  | 'RBRACE'
+  | 'COLON'
+  | 'COMMA'
+  | 'DOT'
+  | 'ARROW_LEFT'
+  | 'ARROW_RIGHT'
+  | 'DASH'
+  | 'PLUS'
+  | 'SLASH'
+  | 'PERCENT'
+  | 'CARET'
+  | 'EQUALS'
+  | 'NOT_EQUALS'
+  | 'LT'
+  | 'GT'
+  | 'LTE'
+  | 'GTE'
+  | 'REGEX_MATCH'
+  | 'STAR'
+  | 'PIPE'
+  | 'EOF';
 
 interface Token {
   type: TokenType;
   value: string;
-  originalValue?: string;  // Preserve original casing for keywords used as identifiers
+  originalValue?: string; // Preserve original casing for keywords used as identifiers
   position: number;
   line: number;
   column: number;
 }
 
 const KEYWORDS = new Set([
-  "CREATE",
-  "MATCH",
-  "MERGE",
-  "SET",
-  "DELETE",
-  "DETACH",
-  "RETURN",
-  "WHERE",
-  "AND",
-  "OR",
-  "XOR",
-  "NOT",
-  "IN",
-  "LIMIT",
-  "SKIP",
-  "ORDER",
-  "BY",
-  "ASC",
-  "ASCENDING",
-  "DESC",
-  "DESCENDING",
-  "COUNT",
-  "ON",
-  "TRUE",
-  "FALSE",
-  "NULL",
-  "CONTAINS",
-  "STARTS",
-  "ENDS",
-  "WITH",
-  "AS",
-  "IS",
-  "DISTINCT",
-  "OPTIONAL",
-  "UNWIND",
-  "CASE",
-  "WHEN",
-  "THEN",
-  "ELSE",
-  "END",
-  "EXISTS",
-  "UNION",
-  "ALL",
-  "ANY",
-  "NONE",
-  "SINGLE",
-  "CALL",
-  "YIELD",
-  "REMOVE",
-  "FOREACH",
-  "EXPLAIN",
-  "PROFILE",
-  "INDEX",
-  "DROP",
-  "CONSTRAINT",
-  "ASSERT",
-  "UNIQUE",
+  'CREATE',
+  'MATCH',
+  'MERGE',
+  'SET',
+  'DELETE',
+  'DETACH',
+  'RETURN',
+  'WHERE',
+  'AND',
+  'OR',
+  'XOR',
+  'NOT',
+  'IN',
+  'LIMIT',
+  'SKIP',
+  'ORDER',
+  'BY',
+  'ASC',
+  'ASCENDING',
+  'DESC',
+  'DESCENDING',
+  'COUNT',
+  'ON',
+  'TRUE',
+  'FALSE',
+  'NULL',
+  'CONTAINS',
+  'STARTS',
+  'ENDS',
+  'WITH',
+  'AS',
+  'IS',
+  'DISTINCT',
+  'OPTIONAL',
+  'UNWIND',
+  'CASE',
+  'WHEN',
+  'THEN',
+  'ELSE',
+  'END',
+  'EXISTS',
+  'UNION',
+  'ALL',
+  'ANY',
+  'NONE',
+  'SINGLE',
+  'CALL',
+  'YIELD',
+  'REMOVE',
+  'FOREACH',
+  'EXPLAIN',
+  'PROFILE',
+  'INDEX',
+  'DROP',
+  'CONSTRAINT',
+  'ASSERT',
+  'UNIQUE',
 ]);
 
 class Tokenizer {
@@ -482,25 +535,25 @@ class Tokenizer {
     // Allow "-1" to be tokenized as a single NUMBER only where a new expression
     // can start. Otherwise (e.g., "x-1") it must be DASH + NUMBER.
     switch (prev.type) {
-      case "LPAREN":
-      case "COMMA":
-      case "LBRACKET":
-      case "LBRACE":
-      case "COLON":
-      case "EQUALS":
-      case "NOT_EQUALS":
-      case "LT":
-      case "LTE":
-      case "GT":
-      case "GTE":
-      case "PLUS":
-      case "DASH":
-      case "STAR":
-      case "SLASH":
-      case "PERCENT":
-      case "CARET":
-      case "PIPE":
-      case "KEYWORD":
+      case 'LPAREN':
+      case 'COMMA':
+      case 'LBRACKET':
+      case 'LBRACE':
+      case 'COLON':
+      case 'EQUALS':
+      case 'NOT_EQUALS':
+      case 'LT':
+      case 'LTE':
+      case 'GT':
+      case 'GTE':
+      case 'PLUS':
+      case 'DASH':
+      case 'STAR':
+      case 'SLASH':
+      case 'PERCENT':
+      case 'CARET':
+      case 'PIPE':
+      case 'KEYWORD':
         return true;
       default:
         return false;
@@ -519,8 +572,8 @@ class Tokenizer {
     }
 
     this.tokens.push({
-      type: "EOF",
-      value: "",
+      type: 'EOF',
+      value: '',
       position: this.pos,
       line: this.line,
       column: this.column,
@@ -538,12 +591,12 @@ class Tokenizer {
       const next = this.input[this.pos + 1];
 
       // Line comment: // ... (until end of line)
-      if (char === "/" && next === "/") {
+      if (char === '/' && next === '/') {
         this.pos += 2;
         this.column += 2;
         while (this.pos < this.input.length) {
           const c = this.input[this.pos];
-          if (c === "\n" || c === "\r") break;
+          if (c === '\n' || c === '\r') break;
           this.pos++;
           this.column++;
         }
@@ -551,7 +604,7 @@ class Tokenizer {
       }
 
       // Block comment: /* ... */
-      if (char === "/" && next === "*") {
+      if (char === '/' && next === '*') {
         const commentStart = this.pos;
         this.pos += 2;
         this.column += 2;
@@ -559,22 +612,22 @@ class Tokenizer {
           const c = this.input[this.pos];
           const n = this.input[this.pos + 1];
 
-          if (c === "*" && n === "/") {
+          if (c === '*' && n === '/') {
             this.pos += 2;
             this.column += 2;
             break;
           }
 
-          if (c === "\n") {
+          if (c === '\n') {
             this.pos++;
             this.line++;
             this.column = 1;
             continue;
           }
 
-          if (c === "\r") {
+          if (c === '\r') {
             this.pos++;
-            if (this.input[this.pos] === "\n") {
+            if (this.input[this.pos] === '\n') {
               this.pos++;
             }
             this.line++;
@@ -586,8 +639,15 @@ class Tokenizer {
           this.column++;
         }
 
-        if (this.pos >= this.input.length && !(this.input[this.pos - 2] === "*" && this.input[this.pos - 1] === "/")) {
-          throw new Error(`Unterminated block comment at position ${commentStart}`);
+        if (
+          this.pos >= this.input.length &&
+          !(
+            this.input[this.pos - 2] === '*' && this.input[this.pos - 1] === '/'
+          )
+        ) {
+          throw new Error(
+            `Unterminated block comment at position ${commentStart}`,
+          );
         }
 
         continue;
@@ -600,16 +660,16 @@ class Tokenizer {
   private skipWhitespace(): void {
     while (this.pos < this.input.length) {
       const char = this.input[this.pos];
-      if (char === " " || char === "\t") {
+      if (char === ' ' || char === '\t') {
         this.pos++;
         this.column++;
-      } else if (char === "\n") {
+      } else if (char === '\n') {
         this.pos++;
         this.line++;
         this.column = 1;
-      } else if (char === "\r") {
+      } else if (char === '\r') {
         this.pos++;
-        if (this.input[this.pos] === "\n") {
+        if (this.input[this.pos] === '\n') {
           this.pos++;
         }
         this.line++;
@@ -629,59 +689,95 @@ class Tokenizer {
     // Two-character operators
     if (this.pos + 1 < this.input.length) {
       const twoChars = this.input.slice(this.pos, this.pos + 2);
-      if (twoChars === "<-") {
+      if (twoChars === '<-') {
         this.pos += 2;
         this.column += 2;
-        return { type: "ARROW_LEFT", value: "<-", position: startPos, line: startLine, column: startColumn };
+        return {
+          type: 'ARROW_LEFT',
+          value: '<-',
+          position: startPos,
+          line: startLine,
+          column: startColumn,
+        };
       }
-      if (twoChars === "->") {
+      if (twoChars === '->') {
         this.pos += 2;
         this.column += 2;
-        return { type: "ARROW_RIGHT", value: "->", position: startPos, line: startLine, column: startColumn };
+        return {
+          type: 'ARROW_RIGHT',
+          value: '->',
+          position: startPos,
+          line: startLine,
+          column: startColumn,
+        };
       }
-      if (twoChars === "<>") {
+      if (twoChars === '<>') {
         this.pos += 2;
         this.column += 2;
-        return { type: "NOT_EQUALS", value: "<>", position: startPos, line: startLine, column: startColumn };
+        return {
+          type: 'NOT_EQUALS',
+          value: '<>',
+          position: startPos,
+          line: startLine,
+          column: startColumn,
+        };
       }
-      if (twoChars === "<=") {
+      if (twoChars === '<=') {
         this.pos += 2;
         this.column += 2;
-        return { type: "LTE", value: "<=", position: startPos, line: startLine, column: startColumn };
+        return {
+          type: 'LTE',
+          value: '<=',
+          position: startPos,
+          line: startLine,
+          column: startColumn,
+        };
       }
-      if (twoChars === ">=") {
+      if (twoChars === '>=') {
         this.pos += 2;
         this.column += 2;
-        return { type: "GTE", value: ">=", position: startPos, line: startLine, column: startColumn };
+        return {
+          type: 'GTE',
+          value: '>=',
+          position: startPos,
+          line: startLine,
+          column: startColumn,
+        };
       }
-      if (twoChars === "=~") {
+      if (twoChars === '=~') {
         this.pos += 2;
         this.column += 2;
-        return { type: "REGEX_MATCH", value: "=~", position: startPos, line: startLine, column: startColumn };
+        return {
+          type: 'REGEX_MATCH',
+          value: '=~',
+          position: startPos,
+          line: startLine,
+          column: startColumn,
+        };
       }
     }
 
     // Single character tokens
     const singleCharTokens: Record<string, TokenType> = {
-      "(": "LPAREN",
-      ")": "RPAREN",
-      "[": "LBRACKET",
-      "]": "RBRACKET",
-      "{": "LBRACE",
-      "}": "RBRACE",
-      ":": "COLON",
-      ",": "COMMA",
-      ".": "DOT",
-      "-": "DASH",
-      "+": "PLUS",
-      "/": "SLASH",
-      "%": "PERCENT",
-      "^": "CARET",
-      "=": "EQUALS",
-      "<": "LT",
-      ">": "GT",
-      "*": "STAR",
-      "|": "PIPE",
+      '(': 'LPAREN',
+      ')': 'RPAREN',
+      '[': 'LBRACKET',
+      ']': 'RBRACKET',
+      '{': 'LBRACE',
+      '}': 'RBRACE',
+      ':': 'COLON',
+      ',': 'COMMA',
+      '.': 'DOT',
+      '-': 'DASH',
+      '+': 'PLUS',
+      '/': 'SLASH',
+      '%': 'PERCENT',
+      '^': 'CARET',
+      '=': 'EQUALS',
+      '<': 'LT',
+      '>': 'GT',
+      '*': 'STAR',
+      '|': 'PIPE',
     };
 
     // Number - includes floats starting with . like .5
@@ -689,8 +785,12 @@ class Tokenizer {
     // But don't match "..3" as ".3" - only match if there's no preceding dot
     if (
       this.isDigit(char) ||
-      (char === "-" && this.isDigit(this.input[this.pos + 1]) && this.canStartNegativeNumber()) ||
-      (char === "." && this.isDigit(this.input[this.pos + 1]) && (this.pos === 0 || this.input[this.pos - 1] !== "."))
+      (char === '-' &&
+        this.isDigit(this.input[this.pos + 1]) &&
+        this.canStartNegativeNumber()) ||
+      (char === '.' &&
+        this.isDigit(this.input[this.pos + 1]) &&
+        (this.pos === 0 || this.input[this.pos - 1] !== '.'))
     ) {
       return this.readNumber(startPos, startLine, startColumn);
     }
@@ -698,15 +798,27 @@ class Tokenizer {
     if (singleCharTokens[char]) {
       this.pos++;
       this.column++;
-      return { type: singleCharTokens[char], value: char, position: startPos, line: startLine, column: startColumn };
+      return {
+        type: singleCharTokens[char],
+        value: char,
+        position: startPos,
+        line: startLine,
+        column: startColumn,
+      };
     }
 
     // Parameter
-    if (char === "$") {
+    if (char === '$') {
       this.pos++;
       this.column++;
       const name = this.readIdentifier();
-      return { type: "PARAMETER", value: name, position: startPos, line: startLine, column: startColumn };
+      return {
+        type: 'PARAMETER',
+        value: name,
+        position: startPos,
+        line: startLine,
+        column: startColumn,
+      };
     }
 
     // String
@@ -715,7 +827,7 @@ class Tokenizer {
     }
 
     // Backtick-delimited identifier (escaped identifier)
-    if (char === "`") {
+    if (char === '`') {
       return this.readBacktickIdentifier(startPos, startLine, startColumn);
     }
 
@@ -723,15 +835,29 @@ class Tokenizer {
     if (this.isIdentifierStart(char)) {
       const value = this.readIdentifier();
       const upperValue = value.toUpperCase();
-      const type: TokenType = KEYWORDS.has(upperValue) ? "KEYWORD" : "IDENTIFIER";
+      const type: TokenType = KEYWORDS.has(upperValue)
+        ? 'KEYWORD'
+        : 'IDENTIFIER';
       // Keywords store uppercase for matching, but we also preserve original casing for when keywords are used as identifiers
-      return { type, value: type === "KEYWORD" ? upperValue : value, originalValue: value, position: startPos, line: startLine, column: startColumn };
+      return {
+        type,
+        value: type === 'KEYWORD' ? upperValue : value,
+        originalValue: value,
+        position: startPos,
+        line: startLine,
+        column: startColumn,
+      };
     }
 
     throw new Error(`Unexpected character '${char}' at position ${this.pos}`);
   }
 
-  private readString(quote: string, startPos: number, startLine: number, startColumn: number): Token {
+  private readString(
+    quote: string,
+    startPos: number,
+    startLine: number,
+    startColumn: number,
+  ): Token {
     this.pos++;
     this.column++;
     const segments: string[] = [];
@@ -745,9 +871,15 @@ class Tokenizer {
         }
         this.pos++;
         this.column++;
-        return { type: "STRING", value: segments.join(""), position: startPos, line: startLine, column: startColumn };
+        return {
+          type: 'STRING',
+          value: segments.join(''),
+          position: startPos,
+          line: startLine,
+          column: startColumn,
+        };
       }
-      if (char === "\\") {
+      if (char === '\\') {
         // Add segment before escape
         if (segmentStart < this.pos) {
           segments.push(this.input.slice(segmentStart, this.pos));
@@ -755,14 +887,35 @@ class Tokenizer {
         this.pos++;
         this.column++;
         const escaped = this.input[this.pos];
-        if (escaped === "n") { segments.push("\n"); this.pos++; this.column++; }
-        else if (escaped === "t") { segments.push("\t"); this.pos++; this.column++; }
-        else if (escaped === "r") { segments.push("\r"); this.pos++; this.column++; }
-        else if (escaped === "b") { segments.push("\b"); this.pos++; this.column++; }
-        else if (escaped === "f") { segments.push("\f"); this.pos++; this.column++; }
-        else if (escaped === "\\") { segments.push("\\"); this.pos++; this.column++; }
-        else if (escaped === quote) { segments.push(quote); this.pos++; this.column++; }
-        else if (escaped === "u") {
+        if (escaped === 'n') {
+          segments.push('\n');
+          this.pos++;
+          this.column++;
+        } else if (escaped === 't') {
+          segments.push('\t');
+          this.pos++;
+          this.column++;
+        } else if (escaped === 'r') {
+          segments.push('\r');
+          this.pos++;
+          this.column++;
+        } else if (escaped === 'b') {
+          segments.push('\b');
+          this.pos++;
+          this.column++;
+        } else if (escaped === 'f') {
+          segments.push('\f');
+          this.pos++;
+          this.column++;
+        } else if (escaped === '\\') {
+          segments.push('\\');
+          this.pos++;
+          this.column++;
+        } else if (escaped === quote) {
+          segments.push(quote);
+          this.pos++;
+          this.column++;
+        } else if (escaped === 'u') {
           // Unicode escape: \uXXXX (4 hex digits required)
           this.pos++;
           this.column++;
@@ -770,18 +923,26 @@ class Tokenizer {
           const hex = this.input.slice(this.pos, this.pos + 4);
           for (let i = 0; i < 4; i++) {
             if (this.pos >= this.input.length) {
-              throw new SyntaxError(`Invalid unicode escape sequence: incomplete \\u escape at position ${hexStart - 2}`);
+              throw new SyntaxError(
+                `Invalid unicode escape sequence: incomplete \\u escape at position ${
+                  hexStart - 2
+                }`,
+              );
             }
             const c = this.input[this.pos];
             if (!/[0-9a-fA-F]/.test(c)) {
-              throw new SyntaxError(`Invalid unicode escape sequence: \\u${this.input.slice(hexStart, this.pos)}${c}`);
+              throw new SyntaxError(
+                `Invalid unicode escape sequence: \\u${this.input.slice(
+                  hexStart,
+                  this.pos,
+                )}${c}`,
+              );
             }
             this.pos++;
             this.column++;
           }
           segments.push(String.fromCharCode(parseInt(hex, 16)));
-        }
-        else {
+        } else {
           segments.push(escaped);
           this.pos++;
           this.column++;
@@ -796,22 +957,29 @@ class Tokenizer {
     throw new Error(`Unterminated string at position ${startPos}`);
   }
 
-  private readNumber(startPos: number, startLine: number, startColumn: number): Token {
+  private readNumber(
+    startPos: number,
+    startLine: number,
+    startColumn: number,
+  ): Token {
     const segments: string[] = [];
 
-    if (this.input[this.pos] === "-") {
-      segments.push("-");
+    if (this.input[this.pos] === '-') {
+      segments.push('-');
       this.pos++;
       this.column++;
     }
 
     // Handle numbers starting with . like .5
-    if (this.input[this.pos] === ".") {
-      segments.push("0.");
+    if (this.input[this.pos] === '.') {
+      segments.push('0.');
       this.pos++;
       this.column++;
       const digitStart = this.pos;
-      while (this.pos < this.input.length && this.isDigit(this.input[this.pos])) {
+      while (
+        this.pos < this.input.length &&
+        this.isDigit(this.input[this.pos])
+      ) {
         this.pos++;
         this.column++;
       }
@@ -819,20 +987,26 @@ class Tokenizer {
         segments.push(this.input.slice(digitStart, this.pos));
       }
       // Handle scientific notation for numbers starting with . (e.g., .5e10)
-      if (this.input[this.pos] === "e" || this.input[this.pos] === "E") {
+      if (this.input[this.pos] === 'e' || this.input[this.pos] === 'E') {
         const nextChar = this.input[this.pos + 1];
-        if (this.isDigit(nextChar) || 
-            ((nextChar === "+" || nextChar === "-") && this.isDigit(this.input[this.pos + 2]))) {
+        if (
+          this.isDigit(nextChar) ||
+          ((nextChar === '+' || nextChar === '-') &&
+            this.isDigit(this.input[this.pos + 2]))
+        ) {
           segments.push(this.input[this.pos]); // 'e' or 'E'
           this.pos++;
           this.column++;
-          if (this.input[this.pos] === "+" || this.input[this.pos] === "-") {
+          if (this.input[this.pos] === '+' || this.input[this.pos] === '-') {
             segments.push(this.input[this.pos]);
             this.pos++;
             this.column++;
           }
           const expStart = this.pos;
-          while (this.pos < this.input.length && this.isDigit(this.input[this.pos])) {
+          while (
+            this.pos < this.input.length &&
+            this.isDigit(this.input[this.pos])
+          ) {
             this.pos++;
             this.column++;
           }
@@ -841,34 +1015,61 @@ class Tokenizer {
           }
         }
       }
-      return { type: "NUMBER", value: segments.join(""), position: startPos, line: startLine, column: startColumn };
+      return {
+        type: 'NUMBER',
+        value: segments.join(''),
+        position: startPos,
+        line: startLine,
+        column: startColumn,
+      };
     }
 
     // Check for hexadecimal: 0x or 0X
-    if (this.input[this.pos] === "0" && (this.input[this.pos + 1] === "x" || this.input[this.pos + 1] === "X")) {
-      segments.push("0x");
+    if (
+      this.input[this.pos] === '0' &&
+      (this.input[this.pos + 1] === 'x' || this.input[this.pos + 1] === 'X')
+    ) {
+      segments.push('0x');
       this.pos += 2;
       this.column += 2;
-      
+
       // Must have at least one hex digit
       if (!this.isHexDigit(this.input[this.pos])) {
-        throw new SyntaxError(`Invalid hexadecimal integer: incomplete hex literal`);
+        throw new SyntaxError(
+          `Invalid hexadecimal integer: incomplete hex literal`,
+        );
       }
-      
+
       // Read hex digits
       const hexStart = this.pos;
-      while (this.pos < this.input.length && this.isHexDigit(this.input[this.pos])) {
+      while (
+        this.pos < this.input.length &&
+        this.isHexDigit(this.input[this.pos])
+      ) {
         this.pos++;
         this.column++;
       }
       segments.push(this.input.slice(hexStart, this.pos));
-      
+
       // Check for invalid characters immediately following (e.g., 0x1g)
-      if (this.pos < this.input.length && this.isIdentifierChar(this.input[this.pos])) {
-        throw new SyntaxError(`Invalid hexadecimal integer: invalid character '${this.input[this.pos]}'`);
+      if (
+        this.pos < this.input.length &&
+        this.isIdentifierChar(this.input[this.pos])
+      ) {
+        throw new SyntaxError(
+          `Invalid hexadecimal integer: invalid character '${
+            this.input[this.pos]
+          }'`,
+        );
       }
-      
-      return { type: "NUMBER", value: segments.join(""), position: startPos, line: startLine, column: startColumn };
+
+      return {
+        type: 'NUMBER',
+        value: segments.join(''),
+        position: startPos,
+        line: startLine,
+        column: startColumn,
+      };
     }
 
     const intStart = this.pos;
@@ -882,12 +1083,18 @@ class Tokenizer {
 
     // Only read decimal part if . is followed by a digit (not another .)
     // This prevents "1..2" from being tokenized as "1." + "." + "2"
-    if (this.input[this.pos] === "." && this.isDigit(this.input[this.pos + 1])) {
-      segments.push(".");
+    if (
+      this.input[this.pos] === '.' &&
+      this.isDigit(this.input[this.pos + 1])
+    ) {
+      segments.push('.');
       this.pos++;
       this.column++;
       const fracStart = this.pos;
-      while (this.pos < this.input.length && this.isDigit(this.input[this.pos])) {
+      while (
+        this.pos < this.input.length &&
+        this.isDigit(this.input[this.pos])
+      ) {
         this.pos++;
         this.column++;
       }
@@ -897,23 +1104,29 @@ class Tokenizer {
     }
 
     // Handle scientific notation (e.g., 1e9, 1E-9, 1.5e+10)
-    if (this.input[this.pos] === "e" || this.input[this.pos] === "E") {
+    if (this.input[this.pos] === 'e' || this.input[this.pos] === 'E') {
       const nextChar = this.input[this.pos + 1];
       // Check if followed by digit, + digit, or - digit
-      if (this.isDigit(nextChar) || 
-          ((nextChar === "+" || nextChar === "-") && this.isDigit(this.input[this.pos + 2]))) {
+      if (
+        this.isDigit(nextChar) ||
+        ((nextChar === '+' || nextChar === '-') &&
+          this.isDigit(this.input[this.pos + 2]))
+      ) {
         segments.push(this.input[this.pos]); // 'e' or 'E'
         this.pos++;
         this.column++;
         // Handle optional sign
-        if (this.input[this.pos] === "+" || this.input[this.pos] === "-") {
+        if (this.input[this.pos] === '+' || this.input[this.pos] === '-') {
           segments.push(this.input[this.pos]);
           this.pos++;
           this.column++;
         }
         // Read exponent digits
         const expStart = this.pos;
-        while (this.pos < this.input.length && this.isDigit(this.input[this.pos])) {
+        while (
+          this.pos < this.input.length &&
+          this.isDigit(this.input[this.pos])
+        ) {
           this.pos++;
           this.column++;
         }
@@ -923,25 +1136,40 @@ class Tokenizer {
       }
     }
 
-    return { type: "NUMBER", value: segments.join(""), position: startPos, line: startLine, column: startColumn };
+    return {
+      type: 'NUMBER',
+      value: segments.join(''),
+      position: startPos,
+      line: startLine,
+      column: startColumn,
+    };
   }
 
   private isHexDigit(char: string): boolean {
-    return (char >= "0" && char <= "9") || 
-           (char >= "a" && char <= "f") || 
-           (char >= "A" && char <= "F");
+    return (
+      (char >= '0' && char <= '9') ||
+      (char >= 'a' && char <= 'f') ||
+      (char >= 'A' && char <= 'F')
+    );
   }
 
   private readIdentifier(): string {
     const startPos = this.pos;
-    while (this.pos < this.input.length && this.isIdentifierChar(this.input[this.pos])) {
+    while (
+      this.pos < this.input.length &&
+      this.isIdentifierChar(this.input[this.pos])
+    ) {
       this.pos++;
       this.column++;
     }
     return this.input.slice(startPos, this.pos);
   }
 
-  private readBacktickIdentifier(startPos: number, startLine: number, startColumn: number): Token {
+  private readBacktickIdentifier(
+    startPos: number,
+    startLine: number,
+    startColumn: number,
+  ): Token {
     this.pos++; // consume opening backtick
     this.column++;
     const segments: string[] = [];
@@ -949,14 +1177,14 @@ class Tokenizer {
 
     while (this.pos < this.input.length) {
       const char = this.input[this.pos];
-      if (char === "`") {
+      if (char === '`') {
         // Check for escaped backtick (double backtick)
-        if (this.input[this.pos + 1] === "`") {
+        if (this.input[this.pos + 1] === '`') {
           // Add segment before escape
           if (segmentStart < this.pos) {
             segments.push(this.input.slice(segmentStart, this.pos));
           }
-          segments.push("`");
+          segments.push('`');
           this.pos += 2;
           this.column += 2;
           segmentStart = this.pos;
@@ -968,9 +1196,15 @@ class Tokenizer {
         }
         this.pos++;
         this.column++;
-        return { type: "IDENTIFIER", value: segments.join(""), position: startPos, line: startLine, column: startColumn };
+        return {
+          type: 'IDENTIFIER',
+          value: segments.join(''),
+          position: startPos,
+          line: startLine,
+          column: startColumn,
+        };
       }
-      if (char === "\n") {
+      if (char === '\n') {
         this.line++;
         this.column = 0; // Will be incremented below
       }
@@ -982,12 +1216,16 @@ class Tokenizer {
   }
 
   private isDigit(char: string): boolean {
-    return char >= "0" && char <= "9";
+    return char >= '0' && char <= '9';
   }
 
   private isIdentifierStart(char: string): boolean {
     // Support ASCII letters, underscore, and Unicode letters (for property names like "données")
-    if ((char >= "a" && char <= "z") || (char >= "A" && char <= "Z") || char === "_") {
+    if (
+      (char >= 'a' && char <= 'z') ||
+      (char >= 'A' && char <= 'Z') ||
+      char === '_'
+    ) {
       return true;
     }
     // Use Unicode property escape for letter categories (Lu, Ll, Lt, Lm, Lo, Nl)
@@ -1005,15 +1243,15 @@ class Tokenizer {
 // ============================================================================
 
 // Int64 range constants
-const INT64_MAX = BigInt("9223372036854775807");
-const INT64_MIN = BigInt("-9223372036854775808");
+const INT64_MAX = BigInt('9223372036854775807');
+const INT64_MIN = BigInt('-9223372036854775808');
 
 export class Parser {
   private tokens: Token[] = [];
   private pos: number = 0;
   private anonVarCounter: number = 0;
   private allowParameterMapInNodePattern: boolean = false;
-  private input: string = "";
+  private input: string = '';
   private recursionDepth: number = 0;
   private static readonly MAX_RECURSION_DEPTH = 200;
 
@@ -1025,10 +1263,10 @@ export class Parser {
     // Check if it's a hexadecimal integer
     const isHex = numStr.includes('0x') || numStr.includes('0X');
     const isNegativeHex = isHex && numStr.startsWith('-');
-    
+
     // Check if it has scientific notation (e.g., 1e9, 1.5E-10)
     const hasExponent = numStr.includes('e') || numStr.includes('E');
-    
+
     // Check if it's an integer (no decimal point, no exponent, and not hex, or is hex)
     if ((!numStr.includes('.') && !hasExponent) || isHex) {
       try {
@@ -1069,12 +1307,13 @@ export class Parser {
       const query = this.parseQuery();
 
       if (query.clauses.length === 0) {
-        return this.error("Empty query");
+        return this.error('Empty query');
       }
 
       return { success: true, query };
     } catch (e) {
-      const currentToken = this.tokens[this.pos] || this.tokens[this.tokens.length - 1];
+      const currentToken =
+        this.tokens[this.pos] || this.tokens[this.tokens.length - 1];
       return {
         success: false,
         error: {
@@ -1092,10 +1331,10 @@ export class Parser {
     let explain = false;
     let profile = false;
 
-    if (this.checkKeyword("EXPLAIN")) {
+    if (this.checkKeyword('EXPLAIN')) {
       this.advance();
       explain = true;
-    } else if (this.checkKeyword("PROFILE")) {
+    } else if (this.checkKeyword('PROFILE')) {
       this.advance();
       profile = true;
     }
@@ -1103,7 +1342,7 @@ export class Parser {
     // Parse clauses until we hit UNION or end
     const clauses: Clause[] = [];
 
-    while (!this.isAtEnd() && !this.checkKeyword("UNION")) {
+    while (!this.isAtEnd() && !this.checkKeyword('UNION')) {
       const clause = this.parseClause();
       if (clause) {
         clauses.push(clause);
@@ -1111,11 +1350,11 @@ export class Parser {
     }
 
     // Check for UNION
-    if (this.checkKeyword("UNION")) {
+    if (this.checkKeyword('UNION')) {
       this.advance(); // consume UNION
 
       // Check for ALL
-      const all = this.checkKeyword("ALL");
+      const all = this.checkKeyword('ALL');
       if (all) {
         this.advance();
       }
@@ -1126,16 +1365,19 @@ export class Parser {
       // Cypher disallows mixing `UNION` and `UNION ALL` within the same query.
       // Since our grammar nests UNIONs on the right, we only need to compare the
       // current UNION modifier with the next UNION (if present).
-      if (rightQuery.clauses.length === 1 && rightQuery.clauses[0]?.type === "UNION") {
+      if (
+        rightQuery.clauses.length === 1 &&
+        rightQuery.clauses[0]?.type === 'UNION'
+      ) {
         const rightUnion = rightQuery.clauses[0] as UnionClause;
         if (rightUnion.all !== all) {
-          throw new SyntaxError("InvalidClauseComposition");
+          throw new SyntaxError('InvalidClauseComposition');
         }
       }
 
       // Create a UNION clause that wraps both queries
       const unionClause: UnionClause = {
-        type: "UNION",
+        type: 'UNION',
         all,
         left: { clauses },
         right: rightQuery,
@@ -1148,7 +1390,8 @@ export class Parser {
   }
 
   private error(message: string): ParseResult {
-    const currentToken = this.tokens[this.pos] || this.tokens[this.tokens.length - 1];
+    const currentToken =
+      this.tokens[this.pos] || this.tokens[this.tokens.length - 1];
     return {
       success: false,
       error: {
@@ -1163,58 +1406,63 @@ export class Parser {
   private parseClause(): Clause | null {
     const token = this.peek();
 
-    if (token.type === "EOF") return null;
+    if (token.type === 'EOF') return null;
 
-    if (token.type !== "KEYWORD") {
-      throw new Error(`Unexpected token '${token.value}', expected a clause keyword like CREATE, MATCH, MERGE, SET, DELETE, or RETURN`);
+    if (token.type !== 'KEYWORD') {
+      throw new Error(
+        `Unexpected token '${token.value}', expected a clause keyword like CREATE, MATCH, MERGE, SET, DELETE, or RETURN`,
+      );
     }
 
     switch (token.value) {
-      case "CREATE":
+      case 'CREATE':
         return this.parseCreate();
-      case "MATCH":
+      case 'MATCH':
         return this.parseMatch(false);
-      case "OPTIONAL":
+      case 'OPTIONAL':
         return this.parseOptionalMatch();
-      case "MERGE":
+      case 'MERGE':
         return this.parseMerge();
-      case "SET":
+      case 'SET':
         return this.parseSet();
-      case "DELETE":
-      case "DETACH":
+      case 'DELETE':
+      case 'DETACH':
         return this.parseDelete();
-      case "REMOVE":
+      case 'REMOVE':
         return this.parseRemove();
-      case "RETURN":
+      case 'RETURN':
         return this.parseReturn();
-      case "WITH":
+      case 'WITH':
         return this.parseWith();
-      case "UNWIND":
+      case 'UNWIND':
         return this.parseUnwind();
-      case "CALL":
+      case 'CALL':
         return this.parseCall();
-      case "FOREACH":
+      case 'FOREACH':
         return this.parseForeach();
-      case "DROP":
+      case 'DROP':
         return this.parseDrop();
       default:
         throw new Error(`Unexpected keyword '${token.value}'`);
     }
   }
 
-  private parseCreate(): CreateClause | CreateIndexClause | CreateConstraintClause {
-    this.expect("KEYWORD", "CREATE");
-    
+  private parseCreate():
+    | CreateClause
+    | CreateIndexClause
+    | CreateConstraintClause {
+    this.expect('KEYWORD', 'CREATE');
+
     // Check if this is CREATE INDEX
-    if (this.check("KEYWORD") && this.peek().value === "INDEX") {
+    if (this.check('KEYWORD') && this.peek().value === 'INDEX') {
       return this.parseCreateIndex();
     }
-    
+
     // Check if this is CREATE CONSTRAINT
-    if (this.check("KEYWORD") && this.peek().value === "CONSTRAINT") {
+    if (this.check('KEYWORD') && this.peek().value === 'CONSTRAINT') {
       return this.parseCreateConstraint();
     }
-    
+
     const patterns: (NodePattern | RelationshipPattern)[] = [];
 
     const prevAllowParamMap = this.allowParameterMapInNodePattern;
@@ -1222,7 +1470,7 @@ export class Parser {
 
     patterns.push(...this.parsePatternChain());
 
-    while (this.check("COMMA")) {
+    while (this.check('COMMA')) {
       this.advance();
       patterns.push(...this.parsePatternChain());
     }
@@ -1231,26 +1479,37 @@ export class Parser {
 
     // Validate: CREATE requires relationship type and direction
     for (const pattern of patterns) {
-      if ("edge" in pattern) {
+      if ('edge' in pattern) {
         // This is a RelationshipPattern
         if (!pattern.edge.type && !pattern.edge.types) {
-          throw new Error("A relationship type is required to create a relationship");
+          throw new Error(
+            'A relationship type is required to create a relationship',
+          );
         }
-        if (pattern.edge.direction === "none") {
-          throw new Error("Only directed relationships are supported in CREATE");
+        if (pattern.edge.direction === 'none') {
+          throw new Error(
+            'Only directed relationships are supported in CREATE',
+          );
         }
         // Multiple relationship types are not allowed in CREATE
         if (pattern.edge.types && pattern.edge.types.length > 1) {
-          throw new Error("A single relationship type must be specified for CREATE");
+          throw new Error(
+            'A single relationship type must be specified for CREATE',
+          );
         }
         // Variable-length patterns are not allowed in CREATE
-        if (pattern.edge.minHops !== undefined || pattern.edge.maxHops !== undefined) {
-          throw new Error("Variable length relationship patterns are not supported in CREATE");
+        if (
+          pattern.edge.minHops !== undefined ||
+          pattern.edge.maxHops !== undefined
+        ) {
+          throw new Error(
+            'Variable length relationship patterns are not supported in CREATE',
+          );
         }
       }
     }
 
-    return { type: "CREATE", patterns };
+    return { type: 'CREATE', patterns };
   }
 
   /**
@@ -1258,36 +1517,39 @@ export class Parser {
    * Syntax: CREATE INDEX [name] ON [:Label](property)
    */
   private parseCreateIndex(): CreateIndexClause {
-    this.expect("KEYWORD", "INDEX");
-    
+    this.expect('KEYWORD', 'INDEX');
+
     let indexName: string | null = null;
-    
+
     // Check if there's a custom index name before ON
-    if (this.check("IDENTIFIER")) {
+    if (this.check('IDENTIFIER')) {
       indexName = this.advance().value;
     }
-    
-    this.expect("KEYWORD", "ON");
-    
+
+    this.expect('KEYWORD', 'ON');
+
     // Optional :Label - we parse it but don't use it (global index)
-    if (this.check("COLON")) {
+    if (this.check('COLON')) {
       this.advance(); // consume :
-      if (this.check("IDENTIFIER") || this.check("KEYWORD")) {
+      if (this.check('IDENTIFIER') || this.check('KEYWORD')) {
         this.advance(); // consume label name, but we ignore it
       }
     }
-    
+
     // Parse (property)
-    this.expect("LPAREN");
+    this.expect('LPAREN');
     const propertyToken = this.advance();
-    if (propertyToken.type !== "IDENTIFIER" && propertyToken.type !== "KEYWORD") {
+    if (
+      propertyToken.type !== 'IDENTIFIER' &&
+      propertyToken.type !== 'KEYWORD'
+    ) {
       throw new Error(`Expected property name, got ${propertyToken.type}`);
     }
     const property = propertyToken.value;
-    this.expect("RPAREN");
-    
+    this.expect('RPAREN');
+
     return {
-      type: "CREATE_INDEX",
+      type: 'CREATE_INDEX',
       property,
       indexName,
     };
@@ -1297,19 +1559,19 @@ export class Parser {
    * Parse DROP statement - dispatches to DROP INDEX or DROP CONSTRAINT
    */
   private parseDrop(): DropIndexClause | DropConstraintClause {
-    this.expect("KEYWORD", "DROP");
-    
-    if (this.check("KEYWORD") && this.peek().value === "INDEX") {
+    this.expect('KEYWORD', 'DROP');
+
+    if (this.check('KEYWORD') && this.peek().value === 'INDEX') {
       this.advance(); // consume INDEX
       return this.parseDropIndexBody();
     }
-    
-    if (this.check("KEYWORD") && this.peek().value === "CONSTRAINT") {
+
+    if (this.check('KEYWORD') && this.peek().value === 'CONSTRAINT') {
       this.advance(); // consume CONSTRAINT
       return this.parseDropConstraintBody();
     }
-    
-    throw new Error("Expected INDEX or CONSTRAINT after DROP");
+
+    throw new Error('Expected INDEX or CONSTRAINT after DROP');
   }
 
   /**
@@ -1318,12 +1580,12 @@ export class Parser {
    */
   private parseDropIndexBody(): DropIndexClause {
     const nameToken = this.advance();
-    if (nameToken.type !== "IDENTIFIER" && nameToken.type !== "KEYWORD") {
+    if (nameToken.type !== 'IDENTIFIER' && nameToken.type !== 'KEYWORD') {
       throw new Error(`Expected index name, got ${nameToken.type}`);
     }
-    
+
     return {
-      type: "DROP_INDEX",
+      type: 'DROP_INDEX',
       indexName: nameToken.value,
     };
   }
@@ -1334,12 +1596,12 @@ export class Parser {
    */
   private parseDropConstraintBody(): DropConstraintClause {
     const nameToken = this.advance();
-    if (nameToken.type !== "IDENTIFIER" && nameToken.type !== "KEYWORD") {
+    if (nameToken.type !== 'IDENTIFIER' && nameToken.type !== 'KEYWORD') {
       throw new Error(`Expected constraint name, got ${nameToken.type}`);
     }
-    
+
     return {
-      type: "DROP_CONSTRAINT",
+      type: 'DROP_CONSTRAINT',
       constraintName: nameToken.value,
     };
   }
@@ -1349,90 +1611,99 @@ export class Parser {
    * Syntax: CREATE CONSTRAINT [name] ON (n:Label) ASSERT n.property IS UNIQUE
    */
   private parseCreateConstraint(): CreateConstraintClause {
-    this.expect("KEYWORD", "CONSTRAINT");
-    
+    this.expect('KEYWORD', 'CONSTRAINT');
+
     let constraintName: string | null = null;
-    
+
     // Check if there's a custom constraint name before ON
-    if (this.check("IDENTIFIER")) {
+    if (this.check('IDENTIFIER')) {
       constraintName = this.advance().value;
     }
-    
-    this.expect("KEYWORD", "ON");
-    
+
+    this.expect('KEYWORD', 'ON');
+
     // Parse (n:Label)
-    this.expect("LPAREN");
-    
+    this.expect('LPAREN');
+
     // Variable name (e.g., "n")
     const varToken = this.advance();
-    if (varToken.type !== "IDENTIFIER" && varToken.type !== "KEYWORD") {
+    if (varToken.type !== 'IDENTIFIER' && varToken.type !== 'KEYWORD') {
       throw new Error(`Expected variable name, got ${varToken.type}`);
     }
     const varName = varToken.value;
-    
+
     // :Label
-    this.expect("COLON");
+    this.expect('COLON');
     const labelToken = this.advance();
-    if (labelToken.type !== "IDENTIFIER" && labelToken.type !== "KEYWORD") {
+    if (labelToken.type !== 'IDENTIFIER' && labelToken.type !== 'KEYWORD') {
       throw new Error(`Expected label name, got ${labelToken.type}`);
     }
     const label = labelToken.value;
-    
-    this.expect("RPAREN");
-    
+
+    this.expect('RPAREN');
+
     // ASSERT
-    this.expect("KEYWORD", "ASSERT");
-    
+    this.expect('KEYWORD', 'ASSERT');
+
     // n.property
     const propVarToken = this.advance();
-    if (propVarToken.type !== "IDENTIFIER" && propVarToken.type !== "KEYWORD") {
+    if (propVarToken.type !== 'IDENTIFIER' && propVarToken.type !== 'KEYWORD') {
       throw new Error(`Expected variable name, got ${propVarToken.type}`);
     }
     if (propVarToken.value !== varName) {
-      throw new Error(`Variable in ASSERT must match variable in ON clause: expected ${varName}, got ${propVarToken.value}`);
+      throw new Error(
+        `Variable in ASSERT must match variable in ON clause: expected ${varName}, got ${propVarToken.value}`,
+      );
     }
-    
-    this.expect("DOT");
-    
+
+    this.expect('DOT');
+
     const propertyToken = this.advance();
-    if (propertyToken.type !== "IDENTIFIER" && propertyToken.type !== "KEYWORD") {
+    if (
+      propertyToken.type !== 'IDENTIFIER' &&
+      propertyToken.type !== 'KEYWORD'
+    ) {
       throw new Error(`Expected property name, got ${propertyToken.type}`);
     }
     const property = propertyToken.value;
-    
+
     // IS UNIQUE
-    this.expect("KEYWORD", "IS");
-    this.expect("KEYWORD", "UNIQUE");
-    
+    this.expect('KEYWORD', 'IS');
+    this.expect('KEYWORD', 'UNIQUE');
+
     return {
-      type: "CREATE_CONSTRAINT",
+      type: 'CREATE_CONSTRAINT',
       constraintName,
       label,
       property,
-      constraintType: "unique",
+      constraintType: 'unique',
     };
   }
 
   private parseMatch(optional: boolean = false): MatchClause {
-    this.expect("KEYWORD", "MATCH");
+    this.expect('KEYWORD', 'MATCH');
     const patterns: (NodePattern | RelationshipPattern)[] = [];
     const pathExpressions: PathExpression[] = [];
 
     // Parse first pattern or path expression
     const firstPattern = this.parsePatternOrPath();
-    if ("type" in firstPattern && firstPattern.type === "path") {
+    if ('type' in firstPattern && firstPattern.type === 'path') {
       pathExpressions.push(firstPattern);
     } else {
-      patterns.push(...(Array.isArray(firstPattern) ? firstPattern : [firstPattern]));
+      patterns.push(
+        ...(Array.isArray(firstPattern) ? firstPattern : [firstPattern]),
+      );
     }
 
-    while (this.check("COMMA")) {
+    while (this.check('COMMA')) {
       this.advance();
       const nextPattern = this.parsePatternOrPath();
-      if ("type" in nextPattern && nextPattern.type === "path") {
+      if ('type' in nextPattern && nextPattern.type === 'path') {
         pathExpressions.push(nextPattern);
       } else {
-        patterns.push(...(Array.isArray(nextPattern) ? nextPattern : [nextPattern]));
+        patterns.push(
+          ...(Array.isArray(nextPattern) ? nextPattern : [nextPattern]),
+        );
       }
     }
 
@@ -1440,69 +1711,93 @@ export class Parser {
     this.validateNoNodeRelationshipVariableConflict(patterns, pathExpressions);
 
     let where: WhereCondition | undefined;
-    if (this.checkKeyword("WHERE")) {
+    if (this.checkKeyword('WHERE')) {
       this.advance();
       where = this.parseWhereCondition();
     }
 
-    return { 
-      type: optional ? "OPTIONAL_MATCH" : "MATCH", 
-      patterns, 
+    return {
+      type: optional ? 'OPTIONAL_MATCH' : 'MATCH',
+      patterns,
       pathExpressions: pathExpressions.length > 0 ? pathExpressions : undefined,
-      where 
+      where,
     };
   }
 
   /**
    * Parse either a regular pattern chain or a named path expression.
-   * Syntax: p = (a)-[r]->(b) or just (a)-[r]->(b)
+   * Syntax:
+   * - p = (a)-[r]->(b)
+   * - p = shortestPath((a)-[r]->(b))
+   * - shortestPath((a)-[r]->(b))
+   * - (a)-[r]->(b)
    */
-  private parsePatternOrPath(): PathExpression | (NodePattern | RelationshipPattern)[] {
+  private parsePatternOrPath():
+    | PathExpression
+    | (NodePattern | RelationshipPattern)[] {
+    // Anonymous path function in MATCH:
+    //   MATCH shortestPath((a)-[:R*]->(b))
+    // For this form we only need the bindings from the inner pattern chain.
+    if (this.check('IDENTIFIER')) {
+      const funcName = this.peek().value.toLowerCase();
+      const nextToken = this.tokens[this.pos + 1];
+      const isPathFunction =
+        funcName === 'shortestpath' || funcName === 'allshortestpaths';
+      if (isPathFunction && nextToken?.type === 'LPAREN') {
+        this.advance(); // consume function name
+        this.expect('LPAREN');
+        const patterns = this.parsePatternChain();
+        this.expect('RPAREN');
+        return patterns;
+      }
+    }
+
     // Check for path expression syntax: identifier = pattern
-    if (this.check("IDENTIFIER")) {
+    if (this.check('IDENTIFIER')) {
       const savedPos = this.pos;
       const identifier = this.advance().value;
-      
-      if (this.check("EQUALS")) {
+
+      if (this.check('EQUALS')) {
         // This is a path expression: p = (a)-[r]->(b) or p = shortestPath(...)
         this.advance(); // consume "="
-        
+
         // Check for path function: shortestPath() or allShortestPaths()
-        let pathFunction: "shortestPath" | "allShortestPaths" | undefined;
-        if (this.check("IDENTIFIER")) {
+        let pathFunction: 'shortestPath' | 'allShortestPaths' | undefined;
+        if (this.check('IDENTIFIER')) {
           const funcName = this.peek().value.toLowerCase();
-          if (funcName === "shortestpath" || funcName === "allshortestpaths") {
-            pathFunction = funcName === "shortestpath" ? "shortestPath" : "allShortestPaths";
+          if (funcName === 'shortestpath' || funcName === 'allshortestpaths') {
+            pathFunction =
+              funcName === 'shortestpath' ? 'shortestPath' : 'allShortestPaths';
             this.advance(); // consume function name
-            this.expect("LPAREN"); // consume opening paren
+            this.expect('LPAREN'); // consume opening paren
           }
         }
-        
+
         const patterns = this.parsePatternChain();
-        
+
         // If we had a path function, consume the closing paren
         if (pathFunction) {
-          this.expect("RPAREN");
+          this.expect('RPAREN');
         }
-        
+
         return {
-          type: "path",
+          type: 'path',
           variable: identifier,
           patterns,
-          ...(pathFunction && { pathFunction })
+          ...(pathFunction && { pathFunction }),
         };
       } else {
         // Not a path expression, backtrack
         this.pos = savedPos;
       }
     }
-    
+
     // Regular pattern chain
     return this.parsePatternChain();
   }
 
   private parseOptionalMatch(): MatchClause {
-    this.expect("KEYWORD", "OPTIONAL");
+    this.expect('KEYWORD', 'OPTIONAL');
     return this.parseMatch(true);
   }
 
@@ -1513,23 +1808,27 @@ export class Parser {
    */
   private validateNoNodeRelationshipVariableConflict(
     patterns: (NodePattern | RelationshipPattern)[],
-    pathExpressions?: PathExpression[]
+    pathExpressions?: PathExpression[],
   ): void {
     const nodeVars = new Set<string>();
     const relVars = new Set<string>();
     const seenRelVars = new Set<string>();
 
     // Helper to collect variables from patterns
-    const collectFromPatterns = (pats: (NodePattern | RelationshipPattern)[]) => {
+    const collectFromPatterns = (
+      pats: (NodePattern | RelationshipPattern)[],
+    ) => {
       for (const pattern of pats) {
-        if ("edge" in pattern) {
+        if ('edge' in pattern) {
           // RelationshipPattern
           if (pattern.source.variable) nodeVars.add(pattern.source.variable);
           if (pattern.target.variable) nodeVars.add(pattern.target.variable);
           if (pattern.edge.variable) {
             // Check for duplicate relationship variable in the same pattern
             if (seenRelVars.has(pattern.edge.variable)) {
-              throw new Error(`Cannot use the same relationship variable '${pattern.edge.variable}' for multiple patterns`);
+              throw new Error(
+                `Cannot use the same relationship variable '${pattern.edge.variable}' for multiple patterns`,
+              );
             }
             seenRelVars.add(pattern.edge.variable);
             relVars.add(pattern.edge.variable);
@@ -1564,15 +1863,15 @@ export class Parser {
   }
 
   private parseMerge(): MergeClause {
-    this.expect("KEYWORD", "MERGE");
-    
+    this.expect('KEYWORD', 'MERGE');
+
     // Parse pattern or path expression (handles p = (a)-[r]->(b) syntax)
     const patternOrPath = this.parsePatternOrPath();
-    
+
     let patterns: (NodePattern | RelationshipPattern)[] = [];
     let pathExpressions: PathExpression[] | undefined;
-    
-    if ("type" in patternOrPath && patternOrPath.type === "path") {
+
+    if ('type' in patternOrPath && patternOrPath.type === 'path') {
       pathExpressions = [patternOrPath];
       // Also add the patterns from the path expression to the patterns array
       patterns = patternOrPath.patterns;
@@ -1582,9 +1881,14 @@ export class Parser {
 
     // Validate patterns - variable-length relationships are not allowed in MERGE
     for (const pattern of patterns) {
-      if ("edge" in pattern) {
-        if (pattern.edge.minHops !== undefined || pattern.edge.maxHops !== undefined) {
-          throw new Error("Variable length relationship patterns are not supported in MERGE");
+      if ('edge' in pattern) {
+        if (
+          pattern.edge.minHops !== undefined ||
+          pattern.edge.maxHops !== undefined
+        ) {
+          throw new Error(
+            'Variable length relationship patterns are not supported in MERGE',
+          );
         }
       }
     }
@@ -1592,28 +1896,34 @@ export class Parser {
     let onCreateSet: SetAssignment[] | undefined;
     let onMatchSet: SetAssignment[] | undefined;
 
-    while (this.checkKeyword("ON")) {
+    while (this.checkKeyword('ON')) {
       this.advance();
-      if (this.checkKeyword("CREATE")) {
+      if (this.checkKeyword('CREATE')) {
         this.advance();
-        this.expect("KEYWORD", "SET");
+        this.expect('KEYWORD', 'SET');
         onCreateSet = this.parseSetAssignments();
-      } else if (this.checkKeyword("MATCH")) {
+      } else if (this.checkKeyword('MATCH')) {
         this.advance();
-        this.expect("KEYWORD", "SET");
+        this.expect('KEYWORD', 'SET');
         onMatchSet = this.parseSetAssignments();
       } else {
-        throw new Error("Expected CREATE or MATCH after ON");
+        throw new Error('Expected CREATE or MATCH after ON');
       }
     }
 
-    return { type: "MERGE", patterns, pathExpressions, onCreateSet, onMatchSet };
+    return {
+      type: 'MERGE',
+      patterns,
+      pathExpressions,
+      onCreateSet,
+      onMatchSet,
+    };
   }
 
   private parseSet(): SetClause {
-    this.expect("KEYWORD", "SET");
+    this.expect('KEYWORD', 'SET');
     const assignments = this.parseSetAssignments();
-    return { type: "SET", assignments };
+    return { type: 'SET', assignments };
   }
 
   private parseSetAssignments(): SetAssignment[] {
@@ -1621,118 +1931,124 @@ export class Parser {
 
     do {
       if (assignments.length > 0) {
-        this.expect("COMMA");
+        this.expect('COMMA');
       }
 
       // Handle parenthesized expression: SET (n).property = value
       let variable: string;
-      if (this.check("LPAREN")) {
+      if (this.check('LPAREN')) {
         this.advance();
         variable = this.expectIdentifier();
-        this.expect("RPAREN");
+        this.expect('RPAREN');
       } else {
         variable = this.expectIdentifier();
       }
-      
+
       // Check for label assignment: SET n:Label or SET n :Label (with whitespace)
-      if (this.check("COLON")) {
+      if (this.check('COLON')) {
         // Label assignment: SET n:Label1:Label2
         const labels: string[] = [];
-        while (this.check("COLON")) {
+        while (this.check('COLON')) {
           this.advance(); // consume ":"
           labels.push(this.expectLabelOrType());
         }
         assignments.push({ variable, labels });
-      } else if (this.check("PLUS")) {
+      } else if (this.check('PLUS')) {
         // Property merge: SET n += {props}
         this.advance(); // consume "+"
-        this.expect("EQUALS");
+        this.expect('EQUALS');
         const value = this.parseExpression();
         assignments.push({ variable, value, mergeProps: true });
-      } else if (this.check("EQUALS")) {
+      } else if (this.check('EQUALS')) {
         // Property replace: SET n = {props}
         this.advance(); // consume "="
         const value = this.parseExpression();
         assignments.push({ variable, value, replaceProps: true });
       } else {
         // Property assignment: SET n.property = value
-        this.expect("DOT");
+        this.expect('DOT');
         const property = this.expectIdentifier();
-        this.expect("EQUALS");
+        this.expect('EQUALS');
         const value = this.parseExpression();
         assignments.push({ variable, property, value });
       }
-    } while (this.check("COMMA"));
+    } while (this.check('COMMA'));
 
     return assignments;
   }
 
   private parseRemove(): RemoveClause {
-    this.expect("KEYWORD", "REMOVE");
+    this.expect('KEYWORD', 'REMOVE');
     const items: RemoveItem[] = [];
 
     do {
       if (items.length > 0) {
-        this.expect("COMMA");
+        this.expect('COMMA');
       }
 
       const variable = this.expectIdentifier();
 
       // Check for label removal: REMOVE n:Label or REMOVE n:Label1:Label2
-      if (this.check("COLON")) {
+      if (this.check('COLON')) {
         const labels: string[] = [];
-        while (this.check("COLON")) {
+        while (this.check('COLON')) {
           this.advance(); // consume ":"
           labels.push(this.expectLabelOrType());
         }
         items.push({ variable, labels });
       } else {
         // Property removal: REMOVE n.prop
-        this.expect("DOT");
+        this.expect('DOT');
         const property = this.expectIdentifier();
         items.push({ variable, property });
       }
-    } while (this.check("COMMA"));
+    } while (this.check('COMMA'));
 
-    return { type: "REMOVE", items };
+    return { type: 'REMOVE', items };
   }
 
   private parseDelete(): DeleteClause {
     let detach = false;
 
-    if (this.checkKeyword("DETACH")) {
+    if (this.checkKeyword('DETACH')) {
       this.advance();
       detach = true;
     }
 
-    this.expect("KEYWORD", "DELETE");
+    this.expect('KEYWORD', 'DELETE');
     const variables: string[] = [];
     const expressions: Expression[] = [];
 
     // Parse first delete target (can be simple variable or complex expression)
     this.parseDeleteTarget(variables, expressions);
 
-    while (this.check("COMMA")) {
+    while (this.check('COMMA')) {
       this.advance();
       this.parseDeleteTarget(variables, expressions);
     }
 
-    const result: DeleteClause = { type: "DELETE", variables, detach };
+    const result: DeleteClause = { type: 'DELETE', variables, detach };
     if (expressions.length > 0) {
       result.expressions = expressions;
     }
     return result;
   }
 
-  private parseDeleteTarget(variables: string[], expressions: Expression[]): void {
+  private parseDeleteTarget(
+    variables: string[],
+    expressions: Expression[],
+  ): void {
     // Check if this is a simple variable or a complex expression
     // Look ahead to see if it's identifier followed by [ (list access) or . (property access)
     const token = this.peek();
-    
-    if (token.type === "IDENTIFIER") {
+
+    if (token.type === 'IDENTIFIER') {
       const nextToken = this.tokens[this.pos + 1];
-      
-      if (nextToken && (nextToken.type === "LBRACKET" || nextToken.type === "DOT")) {
+
+      if (
+        nextToken &&
+        (nextToken.type === 'LBRACKET' || nextToken.type === 'DOT')
+      ) {
         // This is a list access expression like friends[$index]
         // or a property access expression like nodes.key
         const expr = this.parseExpression();
@@ -1744,16 +2060,24 @@ export class Parser {
     } else {
       // DELETE requires a variable or variable-based expression (like list[index])
       // Other expression types (literals, arithmetic, etc.) are not valid DELETE targets
-      throw new Error(`Type mismatch: expected Node or Relationship but was ${token.type === "NUMBER" ? "Integer" : token.type === "STRING" ? "String" : token.value}`);
+      throw new Error(
+        `Type mismatch: expected Node or Relationship but was ${
+          token.type === 'NUMBER'
+            ? 'Integer'
+            : token.type === 'STRING'
+              ? 'String'
+              : token.value
+        }`,
+      );
     }
   }
 
   private parseReturn(): ReturnClause {
-    this.expect("KEYWORD", "RETURN");
-    
+    this.expect('KEYWORD', 'RETURN');
+
     // Check for DISTINCT after RETURN
     let distinct: boolean | undefined;
-    if (this.checkKeyword("DISTINCT")) {
+    if (this.checkKeyword('DISTINCT')) {
       this.advance();
       distinct = true;
     }
@@ -1761,104 +2085,117 @@ export class Parser {
     const items: ReturnItem[] = [];
 
     // Check for RETURN * syntax (return all matched variables)
-    if (this.check("STAR")) {
+    if (this.check('STAR')) {
       this.advance();
       // Mark with special "*" variable to indicate return all
-      items.push({ expression: { type: "variable", variable: "*" } });
+      items.push({ expression: { type: 'variable', variable: '*' } });
       // After *, we might have additional items with comma (unlikely but possible)
       // e.g., RETURN *, count(*) AS cnt - but this is rare
     }
 
-    if (items.length === 0 || this.check("COMMA")) {
+    if (items.length === 0 || this.check('COMMA')) {
       if (items.length > 0) {
         this.advance(); // consume comma after *
       }
       do {
         if (items.length > 0) {
-          this.expect("COMMA");
+          this.expect('COMMA');
         }
 
         // Use parseReturnExpression to allow comparisons in RETURN items
         const expressionStart = this.peek().position;
         const expression = this.parseReturnExpression();
         const expressionEnd = this.peek().position;
-        const rawExpression = this.input.slice(expressionStart, expressionEnd).trim();
+        const rawExpression = this.input
+          .slice(expressionStart, expressionEnd)
+          .trim();
 
         let alias: string | undefined;
 
-        if (this.checkKeyword("AS")) {
+        if (this.checkKeyword('AS')) {
           this.advance();
           alias = this.expectIdentifierOrKeyword();
         }
 
         items.push({ expression, alias, rawExpression });
-      } while (this.check("COMMA"));
+      } while (this.check('COMMA'));
     }
 
     // Parse ORDER BY
-    let orderBy: { expression: Expression; direction: "ASC" | "DESC" }[] | undefined;
-    if (this.checkKeyword("ORDER")) {
+    let orderBy:
+      | { expression: Expression; direction: 'ASC' | 'DESC' }[]
+      | undefined;
+    if (this.checkKeyword('ORDER')) {
       this.advance();
-      this.expect("KEYWORD", "BY");
+      this.expect('KEYWORD', 'BY');
       orderBy = [];
 
       do {
         if (orderBy.length > 0) {
-          this.expect("COMMA");
+          this.expect('COMMA');
         }
         const expression = this.parseReturnExpression();
-        let direction: "ASC" | "DESC" = "ASC"; // Default to ASC
-        if (this.checkKeyword("ASC") || this.checkKeyword("ASCENDING")) {
+        let direction: 'ASC' | 'DESC' = 'ASC'; // Default to ASC
+        if (this.checkKeyword('ASC') || this.checkKeyword('ASCENDING')) {
           this.advance();
-        } else if (this.checkKeyword("DESC") || this.checkKeyword("DESCENDING")) {
+        } else if (
+          this.checkKeyword('DESC') ||
+          this.checkKeyword('DESCENDING')
+        ) {
           this.advance();
-          direction = "DESC";
+          direction = 'DESC';
         }
         orderBy.push({ expression, direction });
-      } while (this.check("COMMA"));
+      } while (this.check('COMMA'));
     }
 
     // Parse SKIP
     let skip: Expression | undefined;
-    if (this.checkKeyword("SKIP")) {
+    if (this.checkKeyword('SKIP')) {
       this.advance();
       skip = this.parseExpression();
       // Validate if it's a literal number
-      if (skip.type === "literal" && typeof skip.value === "number") {
+      if (skip.type === 'literal' && typeof skip.value === 'number') {
         if (!Number.isInteger(skip.value)) {
-          throw new Error("SKIP: InvalidArgumentType - expected an integer value");
+          throw new Error(
+            'SKIP: InvalidArgumentType - expected an integer value',
+          );
         }
         if (skip.value < 0) {
-          throw new Error("SKIP: NegativeIntegerArgument - cannot be negative");
+          throw new Error('SKIP: NegativeIntegerArgument - cannot be negative');
         }
       }
     }
 
     // Parse LIMIT
     let limit: Expression | undefined;
-    if (this.checkKeyword("LIMIT")) {
+    if (this.checkKeyword('LIMIT')) {
       this.advance();
       limit = this.parseExpression();
       // Validate if it's a literal number
-      if (limit.type === "literal" && typeof limit.value === "number") {
+      if (limit.type === 'literal' && typeof limit.value === 'number') {
         if (!Number.isInteger(limit.value)) {
-          throw new Error("LIMIT: InvalidArgumentType - expected an integer value");
+          throw new Error(
+            'LIMIT: InvalidArgumentType - expected an integer value',
+          );
         }
         if (limit.value < 0) {
-          throw new Error("LIMIT: NegativeIntegerArgument - cannot be negative");
+          throw new Error(
+            'LIMIT: NegativeIntegerArgument - cannot be negative',
+          );
         }
       }
     }
 
-    return { type: "RETURN", distinct, items, orderBy, skip, limit };
+    return { type: 'RETURN', distinct, items, orderBy, skip, limit };
   }
 
   private parseWith(): WithClause {
-    this.expect("KEYWORD", "WITH");
-    
+    this.expect('KEYWORD', 'WITH');
+
     // Check for DISTINCT after WITH
     let distinct: boolean | undefined;
-    if (this.checkKeyword("DISTINCT")) {
+    if (this.checkKeyword('DISTINCT')) {
       this.advance();
       distinct = true;
     }
@@ -1867,28 +2204,28 @@ export class Parser {
     let star = false;
 
     // Check for WITH * syntax (pass through all variables)
-    if (this.check("STAR")) {
+    if (this.check('STAR')) {
       this.advance();
       star = true;
       // After *, we might have additional items with comma
       // e.g., WITH *, count(n) AS cnt
       // For now, we'll mark this with a special expression
-      items.push({ expression: { type: "variable", variable: "*" } });
+      items.push({ expression: { type: 'variable', variable: '*' } });
     }
 
-    if (!star || this.check("COMMA")) {
+    if (!star || this.check('COMMA')) {
       if (star) {
         this.advance(); // consume comma after *
       }
       do {
         if (items.length > (star ? 1 : 0)) {
-          this.expect("COMMA");
+          this.expect('COMMA');
         }
 
         const expression = this.parseReturnExpression();
         let alias: string | undefined;
 
-        if (this.checkKeyword("AS")) {
+        if (this.checkKeyword('AS')) {
           this.advance();
           alias = this.expectIdentifierOrKeyword();
         }
@@ -1896,238 +2233,326 @@ export class Parser {
         // In WITH, non-variable expressions must be aliased
         // e.g., WITH count(*) is invalid, but WITH count(*) AS c is valid
         // e.g., WITH a.name is invalid, but WITH a.name AS name is valid
-        if (!alias && expression.type !== "variable") {
+        if (!alias && expression.type !== 'variable') {
           throw new Error(`Expression in WITH must be aliased (use AS)`);
         }
 
         items.push({ expression, alias });
-      } while (this.check("COMMA"));
+      } while (this.check('COMMA'));
     }
 
     // Parse ORDER BY
-    let orderBy: { expression: Expression; direction: "ASC" | "DESC" }[] | undefined;
-    if (this.checkKeyword("ORDER")) {
+    let orderBy:
+      | { expression: Expression; direction: 'ASC' | 'DESC' }[]
+      | undefined;
+    if (this.checkKeyword('ORDER')) {
       this.advance();
-      this.expect("KEYWORD", "BY");
+      this.expect('KEYWORD', 'BY');
       orderBy = [];
 
       do {
         if (orderBy.length > 0) {
-          this.expect("COMMA");
+          this.expect('COMMA');
         }
         const expression = this.parseReturnExpression();
-        let direction: "ASC" | "DESC" = "ASC"; // Default to ASC
-        if (this.checkKeyword("ASC") || this.checkKeyword("ASCENDING")) {
+        let direction: 'ASC' | 'DESC' = 'ASC'; // Default to ASC
+        if (this.checkKeyword('ASC') || this.checkKeyword('ASCENDING')) {
           this.advance();
-        } else if (this.checkKeyword("DESC") || this.checkKeyword("DESCENDING")) {
+        } else if (
+          this.checkKeyword('DESC') ||
+          this.checkKeyword('DESCENDING')
+        ) {
           this.advance();
-          direction = "DESC";
+          direction = 'DESC';
         }
         orderBy.push({ expression, direction });
-      } while (this.check("COMMA"));
+      } while (this.check('COMMA'));
     }
 
     // Parse SKIP
     let skip: Expression | undefined;
-    if (this.checkKeyword("SKIP")) {
+    if (this.checkKeyword('SKIP')) {
       this.advance();
       skip = this.parseExpression();
       // Validate if it's a literal number
-      if (skip.type === "literal" && typeof skip.value === "number") {
+      if (skip.type === 'literal' && typeof skip.value === 'number') {
         if (!Number.isInteger(skip.value)) {
-          throw new Error("SKIP: InvalidArgumentType - expected an integer value");
+          throw new Error(
+            'SKIP: InvalidArgumentType - expected an integer value',
+          );
         }
         if (skip.value < 0) {
-          throw new Error("SKIP: NegativeIntegerArgument - cannot be negative");
+          throw new Error('SKIP: NegativeIntegerArgument - cannot be negative');
         }
       }
     }
 
     // Parse LIMIT
     let limit: Expression | undefined;
-    if (this.checkKeyword("LIMIT")) {
+    if (this.checkKeyword('LIMIT')) {
       this.advance();
       limit = this.parseExpression();
       // Validate if it's a literal number
-      if (limit.type === "literal" && typeof limit.value === "number") {
+      if (limit.type === 'literal' && typeof limit.value === 'number') {
         if (!Number.isInteger(limit.value)) {
-          throw new Error("LIMIT: InvalidArgumentType - expected an integer value");
+          throw new Error(
+            'LIMIT: InvalidArgumentType - expected an integer value',
+          );
         }
         if (limit.value < 0) {
-          throw new Error("LIMIT: NegativeIntegerArgument - cannot be negative");
+          throw new Error(
+            'LIMIT: NegativeIntegerArgument - cannot be negative',
+          );
         }
       }
     }
 
     // Parse optional WHERE clause after WITH items
     let where: WhereCondition | undefined;
-    if (this.checkKeyword("WHERE")) {
+    if (this.checkKeyword('WHERE')) {
       this.advance();
       where = this.parseWhereCondition();
     }
 
-    return { type: "WITH", distinct, items, orderBy, skip, limit, where };
+    return { type: 'WITH', distinct, items, orderBy, skip, limit, where };
   }
 
   private parseUnwind(): UnwindClause {
-    this.expect("KEYWORD", "UNWIND");
-    
+    this.expect('KEYWORD', 'UNWIND');
+
     const expression = this.parseUnwindExpression();
-    
-    this.expect("KEYWORD", "AS");
+
+    this.expect('KEYWORD', 'AS');
     const alias = this.expectIdentifier();
-    
-    return { type: "UNWIND", expression, alias };
+
+    return { type: 'UNWIND', expression, alias };
   }
 
   private parseUnwindExpression(): Expression {
     const token = this.peek();
 
     // NULL literal - UNWIND null produces empty result
-    if (token.type === "KEYWORD" && token.value.toUpperCase() === "NULL") {
+    if (token.type === 'KEYWORD' && token.value.toUpperCase() === 'NULL') {
       this.advance();
-      return { type: "literal", value: null };
+      return { type: 'literal', value: null };
     }
 
     // Parenthesized expression like (first + second)
-    if (token.type === "LPAREN") {
+    if (token.type === 'LPAREN') {
       this.advance();
       const expr = this.parseExpression();
-      this.expect("RPAREN");
+      this.expect('RPAREN');
       return expr;
     }
 
     // Array literal
-    if (token.type === "LBRACKET") {
+    if (token.type === 'LBRACKET') {
       // Use full list literal parsing so elements can be expressions (e.g. [date({year: 1910, ...}), ...])
       return this.parseListLiteralExpression();
     }
 
     // Parameter
-    if (token.type === "PARAMETER") {
+    if (token.type === 'PARAMETER') {
       this.advance();
-      return { type: "parameter", name: token.value };
+      return { type: 'parameter', name: token.value };
     }
 
     // Function call like range(1, 10)
-    if ((token.type === "IDENTIFIER" || token.type === "KEYWORD") && this.tokens[this.pos + 1]?.type === "LPAREN") {
+    if (
+      (token.type === 'IDENTIFIER' || token.type === 'KEYWORD') &&
+      this.tokens[this.pos + 1]?.type === 'LPAREN'
+    ) {
       return this.parseExpression();
     }
 
     // Variable, property access, or index access (e.g., qrows[p])
-    if (token.type === "IDENTIFIER") {
+    if (token.type === 'IDENTIFIER') {
       // Use parseExpression to handle postfix operations like property access and indexing
       return this.parseExpression();
     }
 
-    throw new Error(`Expected array, parameter, or variable in UNWIND, got ${token.type} '${token.value}'`);
+    throw new Error(
+      `Expected array, parameter, or variable in UNWIND, got ${token.type} '${token.value}'`,
+    );
   }
 
   private parseCall(): CallClause {
-    this.expect("KEYWORD", "CALL");
+    this.expect('KEYWORD', 'CALL');
+
+    // Subquery form: CALL { ... }
+    if (this.check('LBRACE')) {
+      this.advance(); // consume {
+      const subquery = this.parseSubqueryQuery();
+
+      this.expect('RBRACE');
+
+      return {
+        type: 'CALL',
+        procedure: '__subquery__',
+        args: [],
+        subquery,
+      };
+    }
 
     // Parse procedure name (e.g., "db.labels" or "db.index.fulltext.queryNodes")
     // Procedure names can have dots and may contain keywords like "index"
     let procedureName = this.expectIdentifierOrKeyword();
-    while (this.check("DOT")) {
+    while (this.check('DOT')) {
       this.advance();
-      procedureName += "." + this.expectIdentifierOrKeyword();
+      procedureName += '.' + this.expectIdentifierOrKeyword();
     }
 
     // Parse arguments in parentheses
-    this.expect("LPAREN");
+    this.expect('LPAREN');
     const args: Expression[] = [];
-    if (!this.check("RPAREN")) {
+    if (!this.check('RPAREN')) {
       do {
         if (args.length > 0) {
-          this.expect("COMMA");
+          this.expect('COMMA');
         }
         args.push(this.parseExpression());
-      } while (this.check("COMMA"));
+      } while (this.check('COMMA'));
     }
-    this.expect("RPAREN");
+    this.expect('RPAREN');
 
     // Parse optional YIELD clause
     let yields: string[] | undefined;
     let where: WhereCondition | undefined;
 
-    if (this.checkKeyword("YIELD")) {
+    if (this.checkKeyword('YIELD')) {
       this.advance();
       yields = [];
 
       // Parse yielded field names (can be identifiers or keywords like 'count')
       do {
         if (yields.length > 0) {
-          this.expect("COMMA");
+          this.expect('COMMA');
         }
         yields.push(this.expectIdentifierOrKeyword());
-      } while (this.check("COMMA"));
+      } while (this.check('COMMA'));
 
       // Parse optional WHERE after YIELD
-      if (this.checkKeyword("WHERE")) {
+      if (this.checkKeyword('WHERE')) {
         this.advance();
         where = this.parseWhereCondition();
       }
     }
 
-    return { type: "CALL", procedure: procedureName, args, yields, where };
+    return { type: 'CALL', procedure: procedureName, args, yields, where };
+  }
+
+  /**
+   * Parse query content inside `CALL { ... }`.
+   * Unlike top-level parseQuery, this stops at `}` and supports UNION/UNION ALL
+   * within the subquery body.
+   */
+  private parseSubqueryQuery(): Query {
+    const clauses: Clause[] = [];
+
+    while (
+      !this.isAtEnd() &&
+      !this.check('RBRACE') &&
+      !this.checkKeyword('UNION')
+    ) {
+      const clause = this.parseClause();
+      if (clause) {
+        clauses.push(clause);
+      }
+    }
+
+    if (this.checkKeyword('UNION')) {
+      this.advance(); // consume UNION
+
+      const all = this.checkKeyword('ALL');
+      if (all) {
+        this.advance();
+      }
+
+      const rightQuery = this.parseSubqueryQuery();
+
+      // Keep Cypher semantics: cannot mix UNION and UNION ALL in one chain.
+      if (
+        rightQuery.clauses.length === 1 &&
+        rightQuery.clauses[0]?.type === 'UNION'
+      ) {
+        const rightUnion = rightQuery.clauses[0] as UnionClause;
+        if (rightUnion.all !== all) {
+          throw new SyntaxError('InvalidClauseComposition');
+        }
+      }
+
+      const unionClause: UnionClause = {
+        type: 'UNION',
+        all,
+        left: { clauses },
+        right: rightQuery,
+      };
+
+      return { clauses: [unionClause] };
+    }
+
+    return { clauses };
   }
 
   private parseForeach(): ForeachClause {
-    this.expect("KEYWORD", "FOREACH");
-    this.expect("LPAREN");
+    this.expect('KEYWORD', 'FOREACH');
+    this.expect('LPAREN');
 
     // Parse iteration variable
     const variable = this.expectIdentifier();
 
     // Expect IN keyword
-    this.expect("KEYWORD", "IN");
+    this.expect('KEYWORD', 'IN');
 
     // Parse the list expression
     const expression = this.parseExpression();
 
     // Expect PIPE separator
-    this.expect("PIPE");
+    this.expect('PIPE');
 
     // Parse body clauses until we hit the closing paren
     const body: Clause[] = [];
-    while (!this.check("RPAREN")) {
+    while (!this.check('RPAREN')) {
       const clause = this.parseForeachBodyClause();
       if (clause) {
         body.push(clause);
       }
     }
 
-    this.expect("RPAREN");
+    this.expect('RPAREN');
 
-    return { type: "FOREACH", variable, expression, body };
+    return { type: 'FOREACH', variable, expression, body };
   }
 
   private parseForeachBodyClause(): Clause | null {
     const token = this.peek();
 
-    if (token.type === "RPAREN" || token.type === "EOF") return null;
+    if (token.type === 'RPAREN' || token.type === 'EOF') return null;
 
-    if (token.type !== "KEYWORD") {
-      throw new Error(`Unexpected token '${token.value}' in FOREACH body, expected SET, CREATE, DELETE, MERGE, or FOREACH`);
+    if (token.type !== 'KEYWORD') {
+      throw new Error(
+        `Unexpected token '${token.value}' in FOREACH body, expected SET, CREATE, DELETE, MERGE, or FOREACH`,
+      );
     }
 
     switch (token.value) {
-      case "SET":
+      case 'SET':
         return this.parseSet();
-      case "CREATE":
+      case 'CREATE':
         return this.parseCreate();
-      case "DELETE":
-      case "DETACH":
+      case 'DELETE':
+      case 'DETACH':
         return this.parseDelete();
-      case "MERGE":
+      case 'MERGE':
         return this.parseMerge();
-      case "REMOVE":
+      case 'REMOVE':
         return this.parseRemove();
-      case "FOREACH":
+      case 'FOREACH':
         return this.parseForeach();
       default:
-        throw new Error(`Unsupported clause '${token.value}' in FOREACH body. Only SET, CREATE, DELETE, MERGE, REMOVE, and FOREACH are allowed.`);
+        throw new Error(
+          `Unsupported clause '${token.value}' in FOREACH body. Only SET, CREATE, DELETE, MERGE, REMOVE, and FOREACH are allowed.`,
+        );
     }
   }
 
@@ -2140,7 +2565,7 @@ export class Parser {
     const firstNode = this.parseNodePattern();
 
     // Check for relationship
-    if (this.check("DASH") || this.check("ARROW_LEFT")) {
+    if (this.check('DASH') || this.check('ARROW_LEFT')) {
       const edge = this.parseEdgePattern();
       const targetNode = this.parseNodePattern();
 
@@ -2163,19 +2588,20 @@ export class Parser {
     const firstNode = this.parseNodePattern();
 
     // Check for relationship chain
-    if (!this.check("DASH") && !this.check("ARROW_LEFT")) {
+    if (!this.check('DASH') && !this.check('ARROW_LEFT')) {
       // Just a single node
       return [firstNode];
     }
 
     // Parse first relationship
     let currentSource = firstNode;
-    while (this.check("DASH") || this.check("ARROW_LEFT")) {
+    while (this.check('DASH') || this.check('ARROW_LEFT')) {
       const edge = this.parseEdgePattern();
       const targetNode = this.parseNodePattern();
 
       // Check if there's another relationship pattern coming after this one
-      const hasMoreRelationships = this.check("DASH") || this.check("ARROW_LEFT");
+      const hasMoreRelationships =
+        this.check('DASH') || this.check('ARROW_LEFT');
 
       // If target is anonymous (no variable) AND there's more patterns coming,
       // assign a synthetic variable for chaining.
@@ -2199,83 +2625,111 @@ export class Parser {
   }
 
   private parseNodePattern(): NodePattern {
-    this.expect("LPAREN");
+    this.expect('LPAREN');
 
     const pattern: NodePattern = {};
 
     // Variable name (allow keywords like 'end' as variable names)
-    if (this.check("IDENTIFIER") || this.check("KEYWORD")) {
+    if (this.check('IDENTIFIER') || this.check('KEYWORD')) {
       const token = this.advance();
       // Use originalValue for keywords to preserve original casing (e.g., 'end' not 'END')
       pattern.variable = token.originalValue || token.value;
     }
 
-    // Labels (can be multiple: :A:B:C)
-    if (this.check("COLON")) {
-      const labels: string[] = [];
-      while (this.check("COLON")) {
-        this.advance(); // consume ":"
-        labels.push(this.expectLabelOrType());
+    // Labels: supports conjunction :A:B:C and disjunction :A|B|C.
+    // Also supports parenthesized disjunction terms used by some query builders:
+    //   :(A)|(B)
+    if (this.check('COLON')) {
+      this.advance(); // consume first ":"
+      const parseLabelTerm = (): string => {
+        if (this.check('LPAREN')) {
+          this.advance(); // consume "("
+          const label = this.expectLabelOrType();
+          this.expect('RPAREN');
+          return label;
+        }
+        return this.expectLabelOrType();
+      };
+
+      const firstLabel = parseLabelTerm();
+
+      if (this.check('PIPE')) {
+        // Label disjunction: (n:A|B|C) — must have EITHER A OR B OR C
+        const orLabels: string[] = [firstLabel];
+        while (this.check('PIPE')) {
+          this.advance(); // consume "|"
+          orLabels.push(parseLabelTerm());
+        }
+        pattern.labelOr = orLabels;
+      } else {
+        // Label conjunction: (n:A:B:C) — must have ALL labels
+        const labels: string[] = [firstLabel];
+        while (this.check('COLON')) {
+          this.advance(); // consume ":"
+          labels.push(parseLabelTerm());
+        }
+        // Store as array if multiple labels, string if single (for backward compatibility)
+        pattern.label = labels.length === 1 ? labels[0] : labels;
       }
-      // Store as array if multiple labels, string if single (for backward compatibility)
-      pattern.label = labels.length === 1 ? labels[0] : labels;
     }
 
     // Properties
-    if (this.check("LBRACE")) {
+    if (this.check('LBRACE')) {
       pattern.properties = this.parseProperties();
     }
 
     // Parameter map properties: (n:Label $props)
-    if (this.allowParameterMapInNodePattern && this.check("PARAMETER")) {
+    if (this.allowParameterMapInNodePattern && this.check('PARAMETER')) {
       if (pattern.properties) {
-        throw new Error("Cannot use both literal properties and parameter map in node pattern");
+        throw new Error(
+          'Cannot use both literal properties and parameter map in node pattern',
+        );
       }
       const paramToken = this.advance();
-      pattern.propertiesParam = { type: "parameter", name: paramToken.value };
+      pattern.propertiesParam = { type: 'parameter', name: paramToken.value };
     }
 
-    this.expect("RPAREN");
+    this.expect('RPAREN');
 
     return pattern;
   }
 
   private parseEdgePattern(): EdgePattern {
-    let direction: "left" | "right" | "none" = "none";
+    let direction: 'left' | 'right' | 'none' = 'none';
 
     // Left arrow or dash
-    if (this.check("ARROW_LEFT")) {
+    if (this.check('ARROW_LEFT')) {
       this.advance();
-      direction = "left";
+      direction = 'left';
     } else {
-      this.expect("DASH");
+      this.expect('DASH');
     }
 
     const edge: EdgePattern = { direction };
 
     // Edge details in brackets
-    if (this.check("LBRACKET")) {
+    if (this.check('LBRACKET')) {
       this.advance();
 
       // Variable name (allow keywords as variable names)
-      if (this.check("IDENTIFIER") || this.check("KEYWORD")) {
+      if (this.check('IDENTIFIER') || this.check('KEYWORD')) {
         const token = this.advance();
         // Use originalValue for keywords to preserve original casing
         edge.variable = token.originalValue || token.value;
       }
 
       // Type (can be identifier or keyword, or multiple types separated by |)
-      if (this.check("COLON")) {
+      if (this.check('COLON')) {
         this.advance();
         const firstType = this.expectLabelOrType();
-        
+
         // Check for multiple types: [:TYPE1|TYPE2|TYPE3] or [:TYPE1|:TYPE2]
-        if (this.check("PIPE")) {
+        if (this.check('PIPE')) {
           const types = [firstType];
-          while (this.check("PIPE")) {
+          while (this.check('PIPE')) {
             this.advance();
             // Some Cypher dialects allow :TYPE after the pipe, consume the optional colon
-            if (this.check("COLON")) {
+            if (this.check('COLON')) {
               this.advance();
             }
             types.push(this.expectLabelOrType());
@@ -2287,31 +2741,31 @@ export class Parser {
       }
 
       // Variable-length pattern: *[min]..[max] or *n or *
-      if (this.check("STAR")) {
+      if (this.check('STAR')) {
         this.advance();
         this.parseVariableLengthSpec(edge);
       }
 
       // Properties
-      if (this.check("LBRACE")) {
+      if (this.check('LBRACE')) {
         edge.properties = this.parseProperties();
       }
 
-      this.expect("RBRACKET");
+      this.expect('RBRACKET');
     }
 
     // Right arrow or dash
-    if (this.check("ARROW_RIGHT")) {
+    if (this.check('ARROW_RIGHT')) {
       this.advance();
-      if (direction === "left") {
+      if (direction === 'left') {
         // <--> pattern means "either direction" (bidirectional), same as --
-        direction = "none";
+        direction = 'none';
       } else {
-        direction = "right";
+        direction = 'right';
       }
       edge.direction = direction;
     } else {
-      this.expect("DASH");
+      this.expect('DASH');
     }
 
     return edge;
@@ -2334,24 +2788,28 @@ export class Parser {
     const MAX_HOPS = Parser.MAX_VARIABLE_LENGTH_HOPS;
 
     // Check for just * with no numbers or dots
-    if (!this.check("NUMBER") && !this.check("DOT")) {
+    if (!this.check('NUMBER') && !this.check('DOT')) {
       edge.minHops = 1;
       edge.maxHops = undefined;
       return;
     }
 
     // Check for ..N pattern (*..3) or just *.. (unbounded from 1)
-    if (this.check("DOT")) {
+    if (this.check('DOT')) {
       this.advance(); // first dot
-      this.expect("DOT"); // second dot
+      this.expect('DOT'); // second dot
       edge.minHops = 1;
-      if (this.check("NUMBER")) {
+      if (this.check('NUMBER')) {
         const maxVal = parseInt(this.advance().value, 10);
         if (maxVal < 0) {
-          throw new Error("Negative bound in variable-length pattern is not allowed");
+          throw new Error(
+            'Negative bound in variable-length pattern is not allowed',
+          );
         }
         if (maxVal > MAX_HOPS) {
-          throw new Error(`Variable-length path depth ${maxVal} exceeds maximum of ${MAX_HOPS}`);
+          throw new Error(
+            `Variable-length path depth ${maxVal} exceeds maximum of ${MAX_HOPS}`,
+          );
         }
         edge.maxHops = maxVal;
       } else {
@@ -2361,35 +2819,43 @@ export class Parser {
     }
 
     // Parse first number
-    const firstNum = parseInt(this.expect("NUMBER").value, 10);
+    const firstNum = parseInt(this.expect('NUMBER').value, 10);
     if (firstNum < 0) {
-      throw new Error("Negative bound in variable-length pattern is not allowed");
+      throw new Error(
+        'Negative bound in variable-length pattern is not allowed',
+      );
     }
     if (firstNum > MAX_HOPS) {
-      throw new Error(`Variable-length path depth ${firstNum} exceeds maximum of ${MAX_HOPS}`);
+      throw new Error(
+        `Variable-length path depth ${firstNum} exceeds maximum of ${MAX_HOPS}`,
+      );
     }
 
     // Check if this is a range or fixed
-    if (this.check("DOT")) {
+    if (this.check('DOT')) {
       this.advance(); // first dot
-      
+
       // Need to check if next is DOT or if dots were consecutive
-      if (this.check("DOT")) {
+      if (this.check('DOT')) {
         this.advance(); // second dot
       }
       // If we just advanced past a DOT and the tokenizer gave us separate dots,
       // we need to handle this. Let's check the current token
-      
+
       edge.minHops = firstNum;
 
       // Check for second number
-      if (this.check("NUMBER")) {
+      if (this.check('NUMBER')) {
         const maxVal = parseInt(this.advance().value, 10);
         if (maxVal < 0) {
-          throw new Error("Negative bound in variable-length pattern is not allowed");
+          throw new Error(
+            'Negative bound in variable-length pattern is not allowed',
+          );
         }
         if (maxVal > MAX_HOPS) {
-          throw new Error(`Variable-length path depth ${maxVal} exceeds maximum of ${MAX_HOPS}`);
+          throw new Error(
+            `Variable-length path depth ${maxVal} exceeds maximum of ${MAX_HOPS}`,
+          );
         }
         edge.maxHops = maxVal;
       } else {
@@ -2403,172 +2869,184 @@ export class Parser {
   }
 
   private parseProperties(): Record<string, PropertyValue> {
-    this.expect("LBRACE");
+    this.expect('LBRACE');
     const properties: Record<string, PropertyValue> = {};
 
-    if (!this.check("RBRACE")) {
+    if (!this.check('RBRACE')) {
       do {
         if (Object.keys(properties).length > 0) {
-          this.expect("COMMA");
+          this.expect('COMMA');
         }
 
         // Property keys can be identifiers OR keywords (like 'id', 'name', 'set', etc.)
         const key = this.expectIdentifierOrKeyword();
-        this.expect("COLON");
+        this.expect('COLON');
         const value = this.parsePropertyValue();
         properties[key] = value;
-      } while (this.check("COMMA"));
+      } while (this.check('COMMA'));
     }
 
-    this.expect("RBRACE");
+    this.expect('RBRACE');
     return properties;
   }
 
   private parsePropertyValue(): PropertyValue {
     // Parse the primary property value first
     let left = this.parsePrimaryPropertyValue();
-    
+
     // Check for binary operators: +, -, *, /, %
-    while (this.check("PLUS") || this.check("DASH") || this.check("STAR") || this.check("SLASH") || this.check("PERCENT")) {
+    while (
+      this.check('PLUS') ||
+      this.check('DASH') ||
+      this.check('STAR') ||
+      this.check('SLASH') ||
+      this.check('PERCENT')
+    ) {
       const opToken = this.advance();
-      let operator: "+" | "-" | "*" | "/" | "%";
-      if (opToken.type === "PLUS") operator = "+";
-      else if (opToken.type === "DASH") operator = "-";
-      else if (opToken.type === "STAR") operator = "*";
-      else if (opToken.type === "SLASH") operator = "/";
-      else operator = "%";
-      
+      let operator: '+' | '-' | '*' | '/' | '%';
+      if (opToken.type === 'PLUS') operator = '+';
+      else if (opToken.type === 'DASH') operator = '-';
+      else if (opToken.type === 'STAR') operator = '*';
+      else if (opToken.type === 'SLASH') operator = '/';
+      else operator = '%';
+
       const right = this.parsePrimaryPropertyValue();
-      left = { type: "binary", operator, left, right };
+      left = { type: 'binary', operator, left, right };
     }
-    
+
     return left;
   }
 
   private parsePrimaryPropertyValue(): PropertyValue {
     const token = this.peek();
 
-    if (token.type === "STRING") {
+    if (token.type === 'STRING') {
       this.advance();
       return token.value;
     }
 
-    if (token.type === "NUMBER") {
+    if (token.type === 'NUMBER') {
       this.advance();
       return this.parseNumber(token.value);
     }
 
     // Handle negative numbers: DASH followed by NUMBER
-    if (token.type === "DASH") {
+    if (token.type === 'DASH') {
       const nextToken = this.tokens[this.pos + 1];
-      if (nextToken && nextToken.type === "NUMBER") {
+      if (nextToken && nextToken.type === 'NUMBER') {
         this.advance(); // consume DASH
         this.advance(); // consume NUMBER
         return -this.parseNumber(nextToken.value);
       }
     }
 
-    if (token.type === "PARAMETER") {
+    if (token.type === 'PARAMETER') {
       this.advance();
-      return { type: "parameter", name: token.value };
+      return { type: 'parameter', name: token.value };
     }
 
-    if (token.type === "KEYWORD") {
-      if (token.value === "TRUE") {
+    if (token.type === 'KEYWORD') {
+      if (token.value === 'TRUE') {
         this.advance();
         return true;
       }
-      if (token.value === "FALSE") {
+      if (token.value === 'FALSE') {
         this.advance();
         return false;
       }
-      if (token.value === "NULL") {
+      if (token.value === 'NULL') {
         this.advance();
         return null;
       }
     }
 
-    if (token.type === "LBRACKET") {
+    if (token.type === 'LBRACKET') {
       return this.parseArray();
     }
 
     // Map literal (e.g., {year: 1980, month: 10, day: 24}) - used in temporal functions like date({..})
-    if (token.type === "LBRACE") {
+    if (token.type === 'LBRACE') {
       return this.parseMapPropertyValue();
     }
 
     // Handle variable references (e.g., from UNWIND), property access (e.g., person.bornIn), or function calls (e.g., datetime())
-    if (token.type === "IDENTIFIER") {
+    if (token.type === 'IDENTIFIER') {
       this.advance();
       const varName = token.value;
-      
+
       // Check for function call: identifier followed by LPAREN
-      if (this.check("LPAREN")) {
+      if (this.check('LPAREN')) {
         this.advance(); // consume LPAREN
         const args: PropertyValue[] = [];
-        
+
         // Parse function arguments
-        if (!this.check("RPAREN")) {
+        if (!this.check('RPAREN')) {
           do {
             if (args.length > 0) {
-              this.expect("COMMA");
+              this.expect('COMMA');
             }
             args.push(this.parsePropertyValue());
-          } while (this.check("COMMA"));
+          } while (this.check('COMMA'));
         }
-        
-        this.expect("RPAREN");
-        return { type: "function", name: varName.toUpperCase(), args };
+
+        this.expect('RPAREN');
+        return { type: 'function', name: varName.toUpperCase(), args };
       }
-      
+
       // Check for property access: variable.property
-      if (this.check("DOT")) {
+      if (this.check('DOT')) {
         this.advance(); // consume DOT
-        const propToken = this.expect("IDENTIFIER");
-        return { type: "property", variable: varName, property: propToken.value };
+        const propToken = this.expect('IDENTIFIER');
+        return {
+          type: 'property',
+          variable: varName,
+          property: propToken.value,
+        };
       }
-      
-      return { type: "variable", name: varName };
+
+      return { type: 'variable', name: varName };
     }
 
-    throw new Error(`Expected property value, got ${token.type} '${token.value}'`);
+    throw new Error(
+      `Expected property value, got ${token.type} '${token.value}'`,
+    );
   }
 
   private parseMapPropertyValue(): MapPropertyValue {
-    this.expect("LBRACE");
+    this.expect('LBRACE');
     const properties: Record<string, PropertyValue> = {};
 
-    if (!this.check("RBRACE")) {
+    if (!this.check('RBRACE')) {
       do {
         if (Object.keys(properties).length > 0) {
-          this.expect("COMMA");
+          this.expect('COMMA');
         }
 
         const key = this.expectIdentifierOrKeyword();
-        this.expect("COLON");
+        this.expect('COLON');
         const value = this.parsePropertyValue();
         properties[key] = value;
-      } while (this.check("COMMA"));
+      } while (this.check('COMMA'));
     }
 
-    this.expect("RBRACE");
-    return { type: "map", properties };
+    this.expect('RBRACE');
+    return { type: 'map', properties };
   }
 
   private parseArray(): PropertyValue[] {
-    this.expect("LBRACKET");
+    this.expect('LBRACKET');
     const values: PropertyValue[] = [];
 
-    if (!this.check("RBRACKET")) {
+    if (!this.check('RBRACKET')) {
       do {
         if (values.length > 0) {
-          this.expect("COMMA");
+          this.expect('COMMA');
         }
         values.push(this.parsePropertyValue());
-      } while (this.check("COMMA"));
+      } while (this.check('COMMA'));
     }
 
-    this.expect("RBRACKET");
+    this.expect('RBRACKET');
     return values;
   }
 
@@ -2579,18 +3057,18 @@ export class Parser {
   private parseOrCondition(): WhereCondition {
     this.recursionDepth++;
     if (this.recursionDepth > Parser.MAX_RECURSION_DEPTH) {
-      throw new Error("Query too deeply nested (max depth: 200)");
+      throw new Error('Query too deeply nested (max depth: 200)');
     }
     try {
-    let left = this.parseAndCondition();
+      let left = this.parseAndCondition();
 
-    while (this.checkKeyword("OR")) {
-      this.advance();
-      const right = this.parseAndCondition();
-      left = { type: "or", conditions: [left, right] };
-    }
+      while (this.checkKeyword('OR')) {
+        this.advance();
+        const right = this.parseAndCondition();
+        left = { type: 'or', conditions: [left, right] };
+      }
 
-    return left;
+      return left;
     } finally {
       this.recursionDepth--;
     }
@@ -2599,114 +3077,123 @@ export class Parser {
   private parseAndCondition(): WhereCondition {
     let left = this.parseNotCondition();
 
-    while (this.checkKeyword("AND")) {
+    while (this.checkKeyword('AND')) {
       this.advance();
       const right = this.parseNotCondition();
-      left = { type: "and", conditions: [left, right] };
+      left = { type: 'and', conditions: [left, right] };
     }
 
     return left;
   }
 
-   private parseNotCondition(): WhereCondition {
-     if (this.checkKeyword("NOT")) {
-       this.advance();
-       const condition = this.parseNotCondition();
-       return { type: "not", condition };
-     }
+  private parseNotCondition(): WhereCondition {
+    if (this.checkKeyword('NOT')) {
+      this.advance();
+      const condition = this.parseNotCondition();
+      return { type: 'not', condition };
+    }
 
-     return this.parsePrimaryCondition();
-   }
+    return this.parsePrimaryCondition();
+  }
 
-   /**
-    * Detect if we're looking at a pattern (e.g., (a)-[:R]->(b)).
-    * A pattern starts with ( and after the matching ), we expect - or <- (not a keyword like AND, OR, etc).
-    */
-   private isPatternStart(): boolean {
-     if (!this.check("LPAREN")) return false;
+  /**
+   * Detect if we're looking at a pattern (e.g., (a)-[:R]->(b)).
+   * A pattern starts with ( and after the matching ), we expect - or <- (not a keyword like AND, OR, etc).
+   */
+  private isPatternStart(): boolean {
+    if (!this.check('LPAREN')) return false;
 
-     // Find the matching closing paren
-     let depth = 0;
-     let pos = this.pos;
-     while (pos < this.tokens.length) {
-       const token = this.tokens[pos];
-       if (token.type === "LPAREN") depth++;
-       else if (token.type === "RPAREN") {
-         depth--;
-         if (depth === 0) {
-           // Check what comes after the closing paren
-           const nextPos = pos + 1;
-           if (nextPos < this.tokens.length) {
-             const nextToken = this.tokens[nextPos];
-             // A pattern is followed by - or <- (never a keyword)
-             return nextToken.type === "DASH" || nextToken.type === "ARROW_LEFT";
-           }
-           return false;
-         }
-       }
-       pos++;
-     }
-     return false;
-   }
+    // Find the matching closing paren
+    let depth = 0;
+    let pos = this.pos;
+    while (pos < this.tokens.length) {
+      const token = this.tokens[pos];
+      if (token.type === 'LPAREN') depth++;
+      else if (token.type === 'RPAREN') {
+        depth--;
+        if (depth === 0) {
+          // Check what comes after the closing paren
+          const nextPos = pos + 1;
+          if (nextPos < this.tokens.length) {
+            const nextToken = this.tokens[nextPos];
+            // A pattern is followed by - or <- (never a keyword)
+            return nextToken.type === 'DASH' || nextToken.type === 'ARROW_LEFT';
+          }
+          return false;
+        }
+      }
+      pos++;
+    }
+    return false;
+  }
 
-   private parsePrimaryCondition(): WhereCondition {
-     // Handle EXISTS pattern
-     if (this.checkKeyword("EXISTS")) {
-       return this.parseExistsCondition();
-     }
+  private parsePrimaryCondition(): WhereCondition {
+    // Handle EXISTS pattern
+    if (this.checkKeyword('EXISTS')) {
+      return this.parseExistsCondition();
+    }
 
-     // Handle list predicates: ALL, ANY, NONE, SINGLE
-     const listPredicates = ["ALL", "ANY", "NONE", "SINGLE"];
-     if (this.peek().type === "KEYWORD" && listPredicates.includes(this.peek().value)) {
-       const nextToken = this.tokens[this.pos + 1];
-       if (nextToken && nextToken.type === "LPAREN") {
-         return this.parseListPredicateCondition();
-       }
-     }
+    // Handle list predicates: ALL, ANY, NONE, SINGLE
+    const listPredicates = ['ALL', 'ANY', 'NONE', 'SINGLE'];
+    if (
+      this.peek().type === 'KEYWORD' &&
+      listPredicates.includes(this.peek().value)
+    ) {
+      const nextToken = this.tokens[this.pos + 1];
+      if (nextToken && nextToken.type === 'LPAREN') {
+        return this.parseListPredicateCondition();
+      }
+    }
 
-     // Handle parenthesized conditions or patterns
-     if (this.check("LPAREN")) {
-       // Lookahead to determine if this is a pattern or a parenthesized condition
-       if (this.isPatternStart()) {
-         // Parse as pattern condition
-         const patterns = this.parsePatternChain();
-         return { type: "patternMatch", patterns };
-       }
-       // Otherwise parse as parenthesized condition
-       this.advance(); // consume (
-       const condition = this.parseOrCondition(); // parse the inner condition
-       this.expect("RPAREN"); // consume )
-       return condition;
-     }
+    // Handle parenthesized conditions or patterns
+    if (this.check('LPAREN')) {
+      // Lookahead to determine if this is a pattern or a parenthesized condition
+      if (this.isPatternStart()) {
+        // Parse as pattern condition
+        const patterns = this.parsePatternChain();
+        return { type: 'patternMatch', patterns };
+      }
+      // Otherwise parse as parenthesized condition
+      this.advance(); // consume (
+      const condition = this.parseOrCondition(); // parse the inner condition
+      this.expect('RPAREN'); // consume )
+      return condition;
+    }
 
-     return this.parseComparisonCondition();
-   }
+    return this.parseComparisonCondition();
+  }
 
   private parseListPredicateCondition(): WhereCondition {
     // Parse list predicate as a condition (for use in WHERE clause)
-    const predicateType = this.advance().value.toUpperCase() as "ALL" | "ANY" | "NONE" | "SINGLE";
-    this.expect("LPAREN");
-    
+    const predicateType = this.advance().value.toUpperCase() as
+      | 'ALL'
+      | 'ANY'
+      | 'NONE'
+      | 'SINGLE';
+    this.expect('LPAREN');
+
     // Expect variable followed by IN
     const variable = this.expectIdentifier();
-    this.expect("KEYWORD", "IN");
-    
+    this.expect('KEYWORD', 'IN');
+
     // Parse the source list expression
     const listExpr = this.parseExpression();
-    
+
     // WHERE clause is required for list predicates
-    if (!this.checkKeyword("WHERE")) {
-      throw new Error(`Expected WHERE after list expression in ${predicateType}()`);
+    if (!this.checkKeyword('WHERE')) {
+      throw new Error(
+        `Expected WHERE after list expression in ${predicateType}()`,
+      );
     }
     this.advance(); // consume WHERE
-    
+
     // Parse the filter condition
     const filterCondition = this.parseListComprehensionCondition(variable);
-    
-    this.expect("RPAREN");
-    
+
+    this.expect('RPAREN');
+
     return {
-      type: "listPredicate",
+      type: 'listPredicate',
       predicateType,
       variable,
       listExpr,
@@ -2715,22 +3202,22 @@ export class Parser {
   }
 
   private parseExistsCondition(): WhereCondition {
-    this.expect("KEYWORD", "EXISTS");
-    this.expect("LPAREN"); // outer (
+    this.expect('KEYWORD', 'EXISTS');
+    this.expect('LPAREN'); // outer (
 
     // Check if this is property existence (e.g., exists(n.property))
     // or pattern existence (e.g., exists((n)-[:REL]->()))
-    if (this.check("LPAREN")) {
+    if (this.check('LPAREN')) {
       // Pattern existence: EXISTS((pattern))
       const patterns = this.parsePatternChain();
       const pattern = patterns.length === 1 ? patterns[0] : patterns[0]; // Use first pattern for now
-      this.expect("RPAREN"); // outer )
-      return { type: "exists", pattern };
+      this.expect('RPAREN'); // outer )
+      return { type: 'exists', pattern };
     } else {
       // Property existence: EXISTS(n.property)
       const expr = this.parseExpression();
-      this.expect("RPAREN"); // outer )
-      return { type: "propertyExists", expression: expr };
+      this.expect('RPAREN'); // outer )
+      return { type: 'propertyExists', expression: expr };
     }
   }
 
@@ -2739,108 +3226,125 @@ export class Parser {
 
     // Check for label predicate: variable:Label or variable:Label1:Label2
     // After parsing the left expression (which should be a variable), check for COLON
-    if (this.check("COLON") && left.type === "variable") {
-      const variable = (left as { type: "variable"; variable: string }).variable;
+    if (this.check('COLON') && left.type === 'variable') {
+      const variable = (left as { type: 'variable'; variable: string })
+        .variable;
       const labelsList: string[] = [];
-      while (this.check("COLON")) {
+      while (this.check('COLON')) {
         this.advance(); // consume :
         labelsList.push(this.expectLabelOrType());
       }
       // Convert to a comparison that checks labels
       // Return as a comparison expression that the translator can handle
-      const labelExpr: Expression = labelsList.length === 1
-        ? { type: "labelPredicate", variable, label: labelsList[0] }
-        : { type: "labelPredicate", variable, labels: labelsList };
+      const labelExpr: Expression =
+        labelsList.length === 1
+          ? { type: 'labelPredicate', variable, label: labelsList[0] }
+          : { type: 'labelPredicate', variable, labels: labelsList };
       // Wrap it in a comparison-like structure for WhereCondition
-      return { type: "comparison", left: labelExpr, operator: "=", right: { type: "literal", value: true } };
+      return {
+        type: 'comparison',
+        left: labelExpr,
+        operator: '=',
+        right: { type: 'literal', value: true },
+      };
     }
 
     // Check for IS NULL / IS NOT NULL
-    if (this.checkKeyword("IS")) {
+    if (this.checkKeyword('IS')) {
       this.advance();
-      if (this.checkKeyword("NOT")) {
+      if (this.checkKeyword('NOT')) {
         this.advance();
-        this.expect("KEYWORD", "NULL");
-        return { type: "isNotNull", left };
+        this.expect('KEYWORD', 'NULL');
+        return { type: 'isNotNull', left };
       } else {
-        this.expect("KEYWORD", "NULL");
-        return { type: "isNull", left };
+        this.expect('KEYWORD', 'NULL');
+        return { type: 'isNull', left };
       }
     }
 
     // Check for string operations
-    if (this.checkKeyword("CONTAINS")) {
+    if (this.checkKeyword('CONTAINS')) {
       this.advance();
       const right = this.parseExpression();
-      return { type: "contains", left, right };
+      return { type: 'contains', left, right };
     }
 
-    if (this.checkKeyword("STARTS")) {
+    if (this.checkKeyword('STARTS')) {
       this.advance();
-      this.expect("KEYWORD", "WITH");
+      this.expect('KEYWORD', 'WITH');
       const right = this.parseExpression();
-      return { type: "startsWith", left, right };
+      return { type: 'startsWith', left, right };
     }
 
-    if (this.checkKeyword("ENDS")) {
+    if (this.checkKeyword('ENDS')) {
       this.advance();
-      this.expect("KEYWORD", "WITH");
+      this.expect('KEYWORD', 'WITH');
       const right = this.parseExpression();
-      return { type: "endsWith", left, right };
+      return { type: 'endsWith', left, right };
     }
 
     // Check for IN operator
-    if (this.checkKeyword("IN")) {
+    if (this.checkKeyword('IN')) {
       this.advance();
       // IN can be followed by any expression that evaluates to a list:
       // - list literal [...]
-      // - parameter $param  
+      // - parameter $param
       // - variable reference
       // - function call like labels(n), keys(n), etc.
       const listExpr = this.parseExpression();
-      return { type: "in", left, list: listExpr };
+      return { type: 'in', left, list: listExpr };
     }
 
     // Check for regex operator =~
-    if (this.check("REGEX_MATCH")) {
+    if (this.check('REGEX_MATCH')) {
       this.advance();
       const right = this.parseExpression();
-      return { type: "regex", left, right };
+      return { type: 'regex', left, right };
     }
 
     // Comparison operators - handle chained comparisons like 1 < n.num < 3
     const opToken = this.peek();
-    let operator: "=" | "<>" | "<" | ">" | "<=" | ">=" | undefined;
+    let operator: '=' | '<>' | '<' | '>' | '<=' | '>=' | undefined;
 
-    if (opToken.type === "EQUALS") operator = "=";
-    else if (opToken.type === "NOT_EQUALS") operator = "<>";
-    else if (opToken.type === "LT") operator = "<";
-    else if (opToken.type === "GT") operator = ">";
-    else if (opToken.type === "LTE") operator = "<=";
-    else if (opToken.type === "GTE") operator = ">=";
+    if (opToken.type === 'EQUALS') operator = '=';
+    else if (opToken.type === 'NOT_EQUALS') operator = '<>';
+    else if (opToken.type === 'LT') operator = '<';
+    else if (opToken.type === 'GT') operator = '>';
+    else if (opToken.type === 'LTE') operator = '<=';
+    else if (opToken.type === 'GTE') operator = '>=';
 
     if (operator) {
       this.advance();
       const middle = this.parseExpression();
-      const firstComparison: WhereCondition = { type: "comparison", left, right: middle, operator };
+      const firstComparison: WhereCondition = {
+        type: 'comparison',
+        left,
+        right: middle,
+        operator,
+      };
 
       // Check for chained comparison: 1 < n.num < 3 means (1 < n.num AND n.num < 3)
       const nextOpToken = this.peek();
-      let secondOperator: "=" | "<>" | "<" | ">" | "<=" | ">=" | undefined;
+      let secondOperator: '=' | '<>' | '<' | '>' | '<=' | '>=' | undefined;
 
-      if (nextOpToken.type === "EQUALS") secondOperator = "=";
-      else if (nextOpToken.type === "NOT_EQUALS") secondOperator = "<>";
-      else if (nextOpToken.type === "LT") secondOperator = "<";
-      else if (nextOpToken.type === "GT") secondOperator = ">";
-      else if (nextOpToken.type === "LTE") secondOperator = "<=";
-      else if (nextOpToken.type === "GTE") secondOperator = ">=";
+      if (nextOpToken.type === 'EQUALS') secondOperator = '=';
+      else if (nextOpToken.type === 'NOT_EQUALS') secondOperator = '<>';
+      else if (nextOpToken.type === 'LT') secondOperator = '<';
+      else if (nextOpToken.type === 'GT') secondOperator = '>';
+      else if (nextOpToken.type === 'LTE') secondOperator = '<=';
+      else if (nextOpToken.type === 'GTE') secondOperator = '>=';
 
       if (secondOperator) {
         this.advance();
         const right = this.parseExpression();
-        const secondComparison: WhereCondition = { type: "comparison", left: middle, right, operator: secondOperator };
+        const secondComparison: WhereCondition = {
+          type: 'comparison',
+          left: middle,
+          right,
+          operator: secondOperator,
+        };
         // Return the chained comparison as an AND condition
-        return { type: "and", conditions: [firstComparison, secondComparison] };
+        return { type: 'and', conditions: [firstComparison, secondComparison] };
       }
 
       return firstComparison;
@@ -2850,7 +3354,7 @@ export class Parser {
     // This handles cases like: WHERE false, WHERE n.active, WHERE true AND x = 1
     // Also handles boolean variables like: WHERE result (where result is a boolean)
     // However, bare variable references like WHERE (n) are invalid - that's checked at translation time
-    return { type: "expression", left };
+    return { type: 'expression', left };
   }
 
   private parseInListExpression(): Expression {
@@ -2858,28 +3362,30 @@ export class Parser {
 
     // Array literal [...] - use parseListLiteralExpression which handles both
     // simple literals and list comprehensions like [x IN list | expr]
-    if (token.type === "LBRACKET") {
+    if (token.type === 'LBRACKET') {
       return this.parseListLiteralExpression();
     }
 
     // Parameter $param
-    if (token.type === "PARAMETER") {
+    if (token.type === 'PARAMETER') {
       this.advance();
-      return { type: "parameter", name: token.value };
+      return { type: 'parameter', name: token.value };
     }
 
     // Variable reference
-    if (token.type === "IDENTIFIER") {
+    if (token.type === 'IDENTIFIER') {
       const variable = this.advance().value;
-      if (this.check("DOT")) {
+      if (this.check('DOT')) {
         this.advance();
         const property = this.expectIdentifier();
-        return { type: "property", variable, property };
+        return { type: 'property', variable, property };
       }
-      return { type: "variable", variable };
+      return { type: 'variable', variable };
     }
 
-    throw new Error(`Expected array, parameter, or variable in IN clause, got ${token.type} '${token.value}'`);
+    throw new Error(
+      `Expected array, parameter, or variable in IN clause, got ${token.type} '${token.value}'`,
+    );
   }
 
   private parseExpression(): Expression {
@@ -2895,18 +3401,18 @@ export class Parser {
   private parseOrExpression(): Expression {
     this.recursionDepth++;
     if (this.recursionDepth > Parser.MAX_RECURSION_DEPTH) {
-      throw new Error("Query too deeply nested (max depth: 200)");
+      throw new Error('Query too deeply nested (max depth: 200)');
     }
     try {
-    let left = this.parseXorExpression();
+      let left = this.parseXorExpression();
 
-    while (this.checkKeyword("OR")) {
-      this.advance();
-      const right = this.parseXorExpression();
-      left = { type: "binary", operator: "OR", left, right };
-    }
+      while (this.checkKeyword('OR')) {
+        this.advance();
+        const right = this.parseXorExpression();
+        left = { type: 'binary', operator: 'OR', left, right };
+      }
 
-    return left;
+      return left;
     } finally {
       this.recursionDepth--;
     }
@@ -2916,10 +3422,10 @@ export class Parser {
   private parseXorExpression(): Expression {
     let left = this.parseAndExpression();
 
-    while (this.checkKeyword("XOR")) {
+    while (this.checkKeyword('XOR')) {
       this.advance();
       const right = this.parseAndExpression();
-      left = { type: "binary", operator: "XOR", left, right };
+      left = { type: 'binary', operator: 'XOR', left, right };
     }
 
     return left;
@@ -2929,10 +3435,10 @@ export class Parser {
   private parseAndExpression(): Expression {
     let left = this.parseNotExpression();
 
-    while (this.checkKeyword("AND")) {
+    while (this.checkKeyword('AND')) {
       this.advance();
       const right = this.parseNotExpression();
-      left = { type: "binary", operator: "AND", left, right };
+      left = { type: 'binary', operator: 'AND', left, right };
     }
 
     return left;
@@ -2940,10 +3446,10 @@ export class Parser {
 
   // Handle NOT (highest precedence for logical operators)
   private parseNotExpression(): Expression {
-    if (this.checkKeyword("NOT")) {
+    if (this.checkKeyword('NOT')) {
       this.advance();
       const operand = this.parseNotExpression();
-      return { type: "unary", operator: "NOT", operand };
+      return { type: 'unary', operator: 'NOT', operand };
     }
 
     return this.parseComparisonExpression();
@@ -2951,26 +3457,38 @@ export class Parser {
 
   // Handle comparison operators (including chained comparisons like 1 <= n <= 10)
   private parseComparisonExpression(): Expression {
-    let left = this.parseIsNullExpression();
+    const left = this.parseIsNullExpression();
 
     // Check for comparison operators
-    const getComparisonOperator = (): "=" | "<>" | "<" | ">" | "<=" | ">=" | undefined => {
+    const getComparisonOperator = ():
+      | '='
+      | '<>'
+      | '<'
+      | '>'
+      | '<='
+      | '>='
+      | undefined => {
       const opToken = this.peek();
-      if (opToken.type === "EQUALS") return "=";
-      if (opToken.type === "NOT_EQUALS") return "<>";
-      if (opToken.type === "LT") return "<";
-      if (opToken.type === "GT") return ">";
-      if (opToken.type === "LTE") return "<=";
-      if (opToken.type === "GTE") return ">=";
+      if (opToken.type === 'EQUALS') return '=';
+      if (opToken.type === 'NOT_EQUALS') return '<>';
+      if (opToken.type === 'LT') return '<';
+      if (opToken.type === 'GT') return '>';
+      if (opToken.type === 'LTE') return '<=';
+      if (opToken.type === 'GTE') return '>=';
       return undefined;
     };
 
-    let comparisonOperator = getComparisonOperator();
+    const comparisonOperator = getComparisonOperator();
 
     if (comparisonOperator) {
       this.advance();
       let middle = this.parseIsNullExpression();
-      let result: Expression = { type: "comparison", comparisonOperator, left, right: middle };
+      let result: Expression = {
+        type: 'comparison',
+        comparisonOperator,
+        left,
+        right: middle,
+      };
 
       // Check for chained comparisons like 1 <= n <= 10
       // This should be parsed as (1 <= n) AND (n <= 10)
@@ -2979,8 +3497,18 @@ export class Parser {
         this.advance();
         const right = this.parseIsNullExpression();
         // Chain: (previous result) AND (middle op right)
-        const newComparison: Expression = { type: "comparison", comparisonOperator: nextOp, left: middle, right };
-        result = { type: "binary", operator: "AND", left: result, right: newComparison };
+        const newComparison: Expression = {
+          type: 'comparison',
+          comparisonOperator: nextOp,
+          left: middle,
+          right,
+        };
+        result = {
+          type: 'binary',
+          operator: 'AND',
+          left: result,
+          right: newComparison,
+        };
         // For further chains, the 'right' becomes the new 'middle'
         middle = right;
         nextOp = getComparisonOperator();
@@ -2993,72 +3521,73 @@ export class Parser {
 
   // Handle IS NULL / IS NOT NULL
   private parseIsNullExpression(): Expression {
-    let left = this.parseAdditiveExpression();
+    const left = this.parseAdditiveExpression();
 
     // Check for label predicate: variable:Label or variable:Label1:Label2
     // This handles bare form `a:B` in RETURN expressions (without parentheses)
-    if (this.check("COLON") && left.type === "variable") {
-      const variable = (left as { type: "variable"; variable: string }).variable;
+    if (this.check('COLON') && left.type === 'variable') {
+      const variable = (left as { type: 'variable'; variable: string })
+        .variable;
       const labelsList: string[] = [];
-      while (this.check("COLON")) {
+      while (this.check('COLON')) {
         this.advance(); // consume :
         labelsList.push(this.expectLabelOrType());
       }
       if (labelsList.length === 1) {
-        return { type: "labelPredicate", variable, label: labelsList[0] };
+        return { type: 'labelPredicate', variable, label: labelsList[0] };
       } else {
-        return { type: "labelPredicate", variable, labels: labelsList };
+        return { type: 'labelPredicate', variable, labels: labelsList };
       }
     }
 
-    if (this.checkKeyword("IS")) {
+    if (this.checkKeyword('IS')) {
       this.advance();
-      if (this.checkKeyword("NOT")) {
+      if (this.checkKeyword('NOT')) {
         this.advance();
-        this.expect("KEYWORD", "NULL");
-        return { type: "comparison", comparisonOperator: "IS NOT NULL", left };
+        this.expect('KEYWORD', 'NULL');
+        return { type: 'comparison', comparisonOperator: 'IS NOT NULL', left };
       } else {
-        this.expect("KEYWORD", "NULL");
-        return { type: "comparison", comparisonOperator: "IS NULL", left };
+        this.expect('KEYWORD', 'NULL');
+        return { type: 'comparison', comparisonOperator: 'IS NULL', left };
       }
     }
 
     // Handle IN operator: value IN list
     // The list can be a function call like keys(n), array literal, parameter, or variable
-    if (this.checkKeyword("IN")) {
+    if (this.checkKeyword('IN')) {
       this.advance();
       // Use parseAdditiveExpression to allow function calls, array literals, etc.
       // but not operators that have lower precedence than IN
       const list = this.parseAdditiveExpression();
-      return { type: "in", left, list };
+      return { type: 'in', left, list };
     }
 
     // Handle string operators: CONTAINS, STARTS WITH, ENDS WITH
-    if (this.checkKeyword("CONTAINS")) {
+    if (this.checkKeyword('CONTAINS')) {
       this.advance();
       const right = this.parseAdditiveExpression();
-      return { type: "stringOp", stringOperator: "CONTAINS", left, right };
+      return { type: 'stringOp', stringOperator: 'CONTAINS', left, right };
     }
 
-    if (this.checkKeyword("STARTS")) {
+    if (this.checkKeyword('STARTS')) {
       this.advance();
-      this.expect("KEYWORD", "WITH");
+      this.expect('KEYWORD', 'WITH');
       const right = this.parseAdditiveExpression();
-      return { type: "stringOp", stringOperator: "STARTS WITH", left, right };
+      return { type: 'stringOp', stringOperator: 'STARTS WITH', left, right };
     }
 
-    if (this.checkKeyword("ENDS")) {
+    if (this.checkKeyword('ENDS')) {
       this.advance();
-      this.expect("KEYWORD", "WITH");
+      this.expect('KEYWORD', 'WITH');
       const right = this.parseAdditiveExpression();
-      return { type: "stringOp", stringOperator: "ENDS WITH", left, right };
+      return { type: 'stringOp', stringOperator: 'ENDS WITH', left, right };
     }
 
     // Handle regex operator: =~
-    if (this.check("REGEX_MATCH")) {
+    if (this.check('REGEX_MATCH')) {
       this.advance();
       const right = this.parseAdditiveExpression();
-      return { type: "regexMatch", pattern: right, left };
+      return { type: 'regexMatch', pattern: right, left };
     }
 
     return left;
@@ -3068,11 +3597,11 @@ export class Parser {
   private parseAdditiveExpression(): Expression {
     let left = this.parseMultiplicativeExpression();
 
-    while (this.check("PLUS") || this.check("DASH")) {
+    while (this.check('PLUS') || this.check('DASH')) {
       const operatorToken = this.advance();
-      const operator = operatorToken.type === "PLUS" ? "+" : "-";
+      const operator = operatorToken.type === 'PLUS' ? '+' : '-';
       const right = this.parseMultiplicativeExpression();
-      left = { type: "binary", operator: operator as "+" | "-", left, right };
+      left = { type: 'binary', operator: operator as '+' | '-', left, right };
     }
 
     return left;
@@ -3082,14 +3611,14 @@ export class Parser {
   private parseMultiplicativeExpression(): Expression {
     let left = this.parseExponentialExpression();
 
-    while (this.check("STAR") || this.check("SLASH") || this.check("PERCENT")) {
+    while (this.check('STAR') || this.check('SLASH') || this.check('PERCENT')) {
       const operatorToken = this.advance();
-      let operator: "*" | "/" | "%";
-      if (operatorToken.type === "STAR") operator = "*";
-      else if (operatorToken.type === "SLASH") operator = "/";
-      else operator = "%";
+      let operator: '*' | '/' | '%';
+      if (operatorToken.type === 'STAR') operator = '*';
+      else if (operatorToken.type === 'SLASH') operator = '/';
+      else operator = '%';
       const right = this.parseExponentialExpression();
-      left = { type: "binary", operator, left, right };
+      left = { type: 'binary', operator, left, right };
     }
 
     return left;
@@ -3099,10 +3628,10 @@ export class Parser {
   private parseExponentialExpression(): Expression {
     let left = this.parsePostfixExpression();
 
-    while (this.check("CARET")) {
+    while (this.check('CARET')) {
       this.advance(); // consume ^
       const right = this.parsePostfixExpression();
-      left = { type: "binary", operator: "^", left, right };
+      left = { type: 'binary', operator: '^', left, right };
     }
 
     return left;
@@ -3113,105 +3642,127 @@ export class Parser {
     let expr = this.parsePrimaryExpression();
 
     // Handle list/map indexing: expr[index] or expr[start..end], chained property access: expr.prop, and map projection: expr {.prop1, .prop2}
-    while (this.check("LBRACKET") || this.check("DOT") || this.check("LBRACE")) {
-      if (this.check("LBRACE")) {
+    while (
+      this.check('LBRACKET') ||
+      this.check('DOT') ||
+      this.check('LBRACE')
+    ) {
+      if (this.check('LBRACE')) {
         // Map projection: p {.name, .age} or p {.name, years: p.age}
         expr = this.parseMapProjection(expr);
         continue;
       }
-      if (this.check("DOT")) {
+      if (this.check('DOT')) {
         this.advance(); // consume .
         // Property access - property names can be keywords too
         const property = this.expectIdentifierOrKeyword();
-        
+
         // Check for namespaced function call: namespace.function(args)
         // e.g., duration.between(), duration.inMonths(), etc.
-        if (this.check("LPAREN")) {
+        if (this.check('LPAREN')) {
           this.advance(); // consume (
-          
+
           // Build the namespaced function name (e.g., "duration.between")
           let namespace: string;
-          if (expr.type === "variable") {
+          if (expr.type === 'variable') {
             namespace = expr.variable!;
-          } else if (expr.type === "propertyAccess") {
+          } else if (expr.type === 'property') {
+            namespace = `${expr.variable}.${expr.property}`;
+          } else if (expr.type === 'propertyAccess') {
             // For deeper chains like a.b.c() - build full namespace path
             const parts: string[] = [];
             let current: Expression = expr;
-            while (current.type === "propertyAccess") {
+            while (current.type === 'propertyAccess') {
               parts.unshift(current.property!);
               current = current.object!;
             }
-            if (current.type === "variable") {
+            if (current.type === 'variable') {
               parts.unshift(current.variable!);
             }
-            namespace = parts.join(".");
+            namespace = parts.join('.');
           } else {
             // Can't form a namespace from this expression type
             throw new Error(`Invalid namespace function call syntax`);
           }
-          
+
           // Convert to uppercase for consistency with other functions
           const functionName = `${namespace}.${property}`.toUpperCase();
           const args: Expression[] = [];
-          
+
           // Check for DISTINCT keyword (for aggregation functions)
           let distinct: boolean | undefined;
-          if (this.checkKeyword("DISTINCT")) {
+          if (this.checkKeyword('DISTINCT')) {
             this.advance();
             distinct = true;
           }
-          
-          if (!this.check("RPAREN")) {
+
+          if (!this.check('RPAREN')) {
             do {
               if (args.length > 0) {
-                this.expect("COMMA");
+                this.expect('COMMA');
               }
               args.push(this.parseReturnExpression());
-            } while (this.check("COMMA"));
+            } while (this.check('COMMA'));
           }
-          
-          this.expect("RPAREN");
-          expr = { type: "function", functionName, args, distinct };
+
+          this.expect('RPAREN');
+          expr = { type: 'function', functionName, args, distinct };
         } else {
           // Regular property access
-          expr = { type: "propertyAccess", object: expr, property };
+          expr = { type: 'propertyAccess', object: expr, property };
         }
       } else {
         // LBRACKET - parse index or slice
         this.advance(); // consume [
-        
+
         // Check for slice syntax [start..end]
-        if (this.check("DOT")) {
+        if (this.check('DOT')) {
           // [..end] - from start (implicit start = 0)
           this.advance(); // consume first .
-          this.expect("DOT"); // consume second .
+          this.expect('DOT'); // consume second .
           const endExpr = this.parseSliceBoundExpression();
-          this.expect("RBRACKET");
+          this.expect('RBRACKET');
           // Use SLICE_FROM_START to indicate implicit start
-          expr = { type: "function", functionName: "SLICE_FROM_START", args: [expr, endExpr] };
+          expr = {
+            type: 'function',
+            functionName: 'SLICE_FROM_START',
+            args: [expr, endExpr],
+          };
         } else {
           // Parse start expression using slice-aware parsing
           const indexExpr = this.parseSliceBoundExpression();
-          
-          if (this.check("DOT")) {
+
+          if (this.check('DOT')) {
             // Check for slice: [start..end] or [start..]
             this.advance(); // consume first .
-            this.expect("DOT"); // consume second .
-            if (this.check("RBRACKET")) {
+            this.expect('DOT'); // consume second .
+            if (this.check('RBRACKET')) {
               // [start..] - to end (implicit end = list length)
-              this.expect("RBRACKET");
+              this.expect('RBRACKET');
               // Use SLICE_TO_END to indicate implicit end
-              expr = { type: "function", functionName: "SLICE_TO_END", args: [expr, indexExpr] };
+              expr = {
+                type: 'function',
+                functionName: 'SLICE_TO_END',
+                args: [expr, indexExpr],
+              };
             } else {
               const endExpr = this.parseSliceBoundExpression();
-              this.expect("RBRACKET");
+              this.expect('RBRACKET');
               // Both bounds are explicit
-              expr = { type: "function", functionName: "SLICE", args: [expr, indexExpr, endExpr] };
+              expr = {
+                type: 'function',
+                functionName: 'SLICE',
+                args: [expr, indexExpr, endExpr],
+              };
             }
           } else {
             // Simple index: [index]
-            this.expect("RBRACKET");
-            expr = { type: "function", functionName: "INDEX", args: [expr, indexExpr] };
+            this.expect('RBRACKET');
+            expr = {
+              type: 'function',
+              functionName: 'INDEX',
+              args: [expr, indexExpr],
+            };
           }
         }
       }
@@ -3232,11 +3783,11 @@ export class Parser {
   private parseSliceBoundAdditiveExpression(): Expression {
     let left = this.parseSliceBoundMultiplicativeExpression();
 
-    while (this.check("PLUS") || this.check("DASH")) {
+    while (this.check('PLUS') || this.check('DASH')) {
       const operatorToken = this.advance();
-      const operator = operatorToken.type === "PLUS" ? "+" : "-";
+      const operator = operatorToken.type === 'PLUS' ? '+' : '-';
       const right = this.parseSliceBoundMultiplicativeExpression();
-      left = { type: "binary", operator: operator as "+" | "-", left, right };
+      left = { type: 'binary', operator: operator as '+' | '-', left, right };
     }
 
     return left;
@@ -3245,14 +3796,14 @@ export class Parser {
   private parseSliceBoundMultiplicativeExpression(): Expression {
     let left = this.parseSliceBoundExponentialExpression();
 
-    while (this.check("STAR") || this.check("SLASH") || this.check("PERCENT")) {
+    while (this.check('STAR') || this.check('SLASH') || this.check('PERCENT')) {
       const operatorToken = this.advance();
-      let operator: "*" | "/" | "%";
-      if (operatorToken.type === "STAR") operator = "*";
-      else if (operatorToken.type === "SLASH") operator = "/";
-      else operator = "%";
+      let operator: '*' | '/' | '%';
+      if (operatorToken.type === 'STAR') operator = '*';
+      else if (operatorToken.type === 'SLASH') operator = '/';
+      else operator = '%';
       const right = this.parseSliceBoundExponentialExpression();
-      left = { type: "binary", operator, left, right };
+      left = { type: 'binary', operator, left, right };
     }
 
     return left;
@@ -3261,10 +3812,10 @@ export class Parser {
   private parseSliceBoundExponentialExpression(): Expression {
     let left = this.parseSliceBoundPostfixExpression();
 
-    while (this.check("CARET")) {
+    while (this.check('CARET')) {
       this.advance();
       const right = this.parseSliceBoundPostfixExpression();
-      left = { type: "binary", operator: "^", left, right };
+      left = { type: 'binary', operator: '^', left, right };
     }
 
     return left;
@@ -3278,45 +3829,61 @@ export class Parser {
     let expr = this.parsePrimaryExpression();
 
     // Handle postfix operations, but stop at ".." for slice syntax
-    while (this.check("LBRACKET") || this.check("DOT")) {
-      if (this.check("DOT")) {
+    while (this.check('LBRACKET') || this.check('DOT')) {
+      if (this.check('DOT')) {
         // Check if this is ".." (slice syntax) - if so, stop here
         const nextToken = this.tokens[this.pos + 1];
-        if (nextToken && nextToken.type === "DOT") {
+        if (nextToken && nextToken.type === 'DOT') {
           // This is ".." - stop parsing, let the caller handle slice
           break;
         }
         // Single dot - property access
         this.advance(); // consume .
         const property = this.expectIdentifierOrKeyword();
-        expr = { type: "propertyAccess", object: expr, property };
+        expr = { type: 'propertyAccess', object: expr, property };
       } else {
         // LBRACKET - nested index access
         this.advance(); // consume [
-        if (this.check("DOT")) {
+        if (this.check('DOT')) {
           // [..end] - from start (implicit start = 0)
           this.advance();
-          this.expect("DOT");
+          this.expect('DOT');
           const endExpr = this.parseSliceBoundExpression();
-          this.expect("RBRACKET");
-          expr = { type: "function", functionName: "SLICE_FROM_START", args: [expr, endExpr] };
+          this.expect('RBRACKET');
+          expr = {
+            type: 'function',
+            functionName: 'SLICE_FROM_START',
+            args: [expr, endExpr],
+          };
         } else {
           const indexExpr = this.parseSliceBoundExpression();
-          if (this.check("DOT")) {
+          if (this.check('DOT')) {
             this.advance();
-            this.expect("DOT");
-            if (this.check("RBRACKET")) {
+            this.expect('DOT');
+            if (this.check('RBRACKET')) {
               // [start..] - to end (implicit end = list length)
-              this.expect("RBRACKET");
-              expr = { type: "function", functionName: "SLICE_TO_END", args: [expr, indexExpr] };
+              this.expect('RBRACKET');
+              expr = {
+                type: 'function',
+                functionName: 'SLICE_TO_END',
+                args: [expr, indexExpr],
+              };
             } else {
               const endExpr = this.parseSliceBoundExpression();
-              this.expect("RBRACKET");
-              expr = { type: "function", functionName: "SLICE", args: [expr, indexExpr, endExpr] };
+              this.expect('RBRACKET');
+              expr = {
+                type: 'function',
+                functionName: 'SLICE',
+                args: [expr, indexExpr, endExpr],
+              };
             }
           } else {
-            this.expect("RBRACKET");
-            expr = { type: "function", functionName: "INDEX", args: [expr, indexExpr] };
+            this.expect('RBRACKET');
+            expr = {
+              type: 'function',
+              functionName: 'INDEX',
+              args: [expr, indexExpr],
+            };
           }
         }
       }
@@ -3330,129 +3897,132 @@ export class Parser {
     const token = this.peek();
 
     // List literal [1, 2, 3]
-    if (token.type === "LBRACKET") {
+    if (token.type === 'LBRACKET') {
       return this.parseListLiteralExpression();
     }
 
     // Object literal { key: value, ... }
-    if (token.type === "LBRACE") {
+    if (token.type === 'LBRACE') {
       return this.parseObjectLiteral();
     }
 
     // Parenthesized expression for grouping or label predicate (n:Label)
-    if (token.type === "LPAREN") {
+    if (token.type === 'LPAREN') {
       // Check for label predicate: (n:Label) or (n:Label1:Label2)
       // Look ahead: ( IDENTIFIER COLON ...
       const nextToken = this.tokens[this.pos + 1];
       const afterNext = this.tokens[this.pos + 2];
-      if (nextToken?.type === "IDENTIFIER" && afterNext?.type === "COLON") {
+      if (nextToken?.type === 'IDENTIFIER' && afterNext?.type === 'COLON') {
         this.advance(); // consume (
         const variable = this.advance().value; // consume identifier
-        
+
         // Parse one or more labels
         const labelsList: string[] = [];
-        while (this.check("COLON")) {
+        while (this.check('COLON')) {
           this.advance(); // consume :
           labelsList.push(this.expectLabelOrType());
         }
-        
-        this.expect("RPAREN");
-        
+
+        this.expect('RPAREN');
+
         if (labelsList.length === 1) {
-          return { type: "labelPredicate", variable, label: labelsList[0] };
+          return { type: 'labelPredicate', variable, label: labelsList[0] };
         } else {
-          return { type: "labelPredicate", variable, labels: labelsList };
+          return { type: 'labelPredicate', variable, labels: labelsList };
         }
       }
-      
+
       // Regular parenthesized expression - use full expression parsing including AND/OR
       this.advance(); // consume (
       const expr = this.parseOrExpression();
-      this.expect("RPAREN");
+      this.expect('RPAREN');
       return expr;
     }
 
     // CASE expression
-    if (this.checkKeyword("CASE")) {
+    if (this.checkKeyword('CASE')) {
       return this.parseCaseExpression();
     }
 
     // Function call: COUNT(x), id(x), count(DISTINCT x), COUNT(*)
     // Also handles list predicates: ALL(x IN list WHERE cond), ANY(...), NONE(...), SINGLE(...)
-    if (token.type === "KEYWORD" || token.type === "IDENTIFIER") {
+    if (token.type === 'KEYWORD' || token.type === 'IDENTIFIER') {
       const nextToken = this.tokens[this.pos + 1];
-      if (nextToken && nextToken.type === "LPAREN") {
+      if (nextToken && nextToken.type === 'LPAREN') {
         const functionName = this.advance().value.toUpperCase();
         this.advance(); // LPAREN
-        
+
         // Check if this is EXISTS with a pattern
-        if (functionName === "EXISTS") {
+        if (functionName === 'EXISTS') {
           // EXISTS((pattern)) - check if next token is LPAREN (start of pattern)
-          if (this.check("LPAREN") && this.isPatternStart()) {
+          if (this.check('LPAREN') && this.isPatternStart()) {
             const patterns = this.parsePatternChain();
-            this.expect("RPAREN");
-            return { type: "existsPattern", patterns };
+            this.expect('RPAREN');
+            return { type: 'existsPattern', patterns };
           }
         }
-        
+
         // Check if this is SIZE with a pattern expression
-        if (functionName === "SIZE") {
+        if (functionName === 'SIZE') {
           // SIZE((pattern)) - count matching relationships
-          if (this.check("LPAREN") && this.isPatternStart()) {
+          if (this.check('LPAREN') && this.isPatternStart()) {
             const patterns = this.parsePatternChain();
-            this.expect("RPAREN");
-            return { type: "sizePattern", patterns };
+            this.expect('RPAREN');
+            return { type: 'sizePattern', patterns };
           }
         }
-        
+
         // Check if this is a list predicate: ALL, ANY, NONE, SINGLE
-        const listPredicates = ["ALL", "ANY", "NONE", "SINGLE"];
+        const listPredicates = ['ALL', 'ANY', 'NONE', 'SINGLE'];
         if (listPredicates.includes(functionName)) {
           // Check for list predicate syntax: PRED(var IN list WHERE cond)
           // Lookahead to see if next is identifier followed by IN
-          if (this.check("IDENTIFIER")) {
+          if (this.check('IDENTIFIER')) {
             const savedPos = this.pos;
             const varToken = this.advance();
-            
-            if (this.checkKeyword("IN")) {
+
+            if (this.checkKeyword('IN')) {
               // This is a list predicate
               this.advance(); // consume IN
-              return this.parseListPredicate(functionName as "ALL" | "ANY" | "NONE" | "SINGLE", varToken.value);
+              return this.parseListPredicate(
+                functionName as 'ALL' | 'ANY' | 'NONE' | 'SINGLE',
+                varToken.value,
+              );
             } else {
               // Not a list predicate syntax, backtrack
               this.pos = savedPos;
             }
           }
         }
-        
+
         // Check if this is a REDUCE expression: reduce(acc = init, x IN list | expr)
-        if (functionName === "REDUCE") {
+        if (functionName === 'REDUCE') {
           // Parse accumulator = initialValue
-          const accumulatorToken = this.expect("IDENTIFIER");
-          this.expect("EQUALS");
+          const accumulatorToken = this.expect('IDENTIFIER');
+          this.expect('EQUALS');
           const initialValue = this.parseExpression();
-          
+
           // Expect COMMA
-          this.expect("COMMA");
-          
+          this.expect('COMMA');
+
           // Parse variable IN listExpr
-          const iteratorToken = this.expect("IDENTIFIER");
-          if (!this.checkKeyword("IN")) {
-            throw new Error("Expected IN keyword in reduce()");
+          const iteratorToken = this.expect('IDENTIFIER');
+          if (!this.checkKeyword('IN')) {
+            throw new Error('Expected IN keyword in reduce()');
           }
           this.advance(); // consume IN
           const listExpr = this.parseExpression();
-          
+
           // Expect PIPE
-          this.expect("PIPE");
-          
+          this.expect('PIPE');
+
           // Parse the reduce expression
           const reduceExpr = this.parseExpression();
-          
-          this.expect("RPAREN");
-          
+
+          this.expect('RPAREN');
+
           return {
-            type: "reduce",
+            type: 'reduce',
             accumulator: accumulatorToken.value,
             initialValue,
             variable: iteratorToken.value,
@@ -3460,242 +4030,262 @@ export class Parser {
             reduceExpr,
           };
         }
-        
+
         // Check if this is a FILTER expression: filter(x IN list WHERE predicate)
-        if (functionName === "FILTER") {
+        if (functionName === 'FILTER') {
           // Parse variable IN listExpr
-          const iteratorToken = this.expect("IDENTIFIER");
-          if (!this.checkKeyword("IN")) {
-            throw new Error("Expected IN keyword in filter()");
+          const iteratorToken = this.expect('IDENTIFIER');
+          if (!this.checkKeyword('IN')) {
+            throw new Error('Expected IN keyword in filter()');
           }
           this.advance(); // consume IN
           const listExpr = this.parseExpression();
-          
+
           // Expect WHERE
-          if (!this.checkKeyword("WHERE")) {
-            throw new Error("Expected WHERE keyword in filter()");
+          if (!this.checkKeyword('WHERE')) {
+            throw new Error('Expected WHERE keyword in filter()');
           }
           this.advance(); // consume WHERE
-          
+
           // Parse the filter predicate
           const filterCondition = this.parseWhereCondition();
-          
-          this.expect("RPAREN");
-          
+
+          this.expect('RPAREN');
+
           return {
-            type: "filter",
+            type: 'filter',
             variable: iteratorToken.value,
             listExpr,
             filterCondition,
           };
         }
-        
+
         // Check if this is an EXTRACT expression: extract(x IN list | expr)
-        if (functionName === "EXTRACT") {
+        if (functionName === 'EXTRACT') {
           // Parse variable IN listExpr
-          const iteratorToken = this.expect("IDENTIFIER");
-          if (!this.checkKeyword("IN")) {
-            throw new Error("Expected IN keyword in extract()");
+          const iteratorToken = this.expect('IDENTIFIER');
+          if (!this.checkKeyword('IN')) {
+            throw new Error('Expected IN keyword in extract()');
           }
           this.advance(); // consume IN
           const listExpr = this.parseExpression();
-          
+
           // Expect PIPE
-          this.expect("PIPE");
-          
+          this.expect('PIPE');
+
           // Parse the map expression
           const mapExpr = this.parseExpression();
-          
-          this.expect("RPAREN");
-          
+
+          this.expect('RPAREN');
+
           return {
-            type: "extract",
+            type: 'extract',
             variable: iteratorToken.value,
             listExpr,
             mapExpr,
           };
         }
-        
+
         const args: Expression[] = [];
-        
+
         // Check for DISTINCT keyword after opening paren (for aggregation functions)
         let distinct: boolean | undefined;
-        if (this.checkKeyword("DISTINCT")) {
+        if (this.checkKeyword('DISTINCT')) {
           this.advance();
           distinct = true;
         }
 
         // Special case: COUNT(*) - handle STAR token as "count all"
-        if (this.check("STAR")) {
+        if (this.check('STAR')) {
           this.advance(); // consume STAR
           // COUNT(*) has no arguments - the * means "count all rows"
-          this.expect("RPAREN");
-          return { type: "function", functionName, args: [], distinct, star: true };
+          this.expect('RPAREN');
+          return {
+            type: 'function',
+            functionName,
+            args: [],
+            distinct,
+            star: true,
+          };
         }
 
-        if (!this.check("RPAREN")) {
+        if (!this.check('RPAREN')) {
           do {
             if (args.length > 0) {
-              this.expect("COMMA");
+              this.expect('COMMA');
             }
             // Use parseReturnExpression to support comparisons and logical operators in function args
             args.push(this.parseReturnExpression());
-          } while (this.check("COMMA"));
+          } while (this.check('COMMA'));
         }
 
-        this.expect("RPAREN");
-        return { type: "function", functionName, args, distinct };
+        this.expect('RPAREN');
+        return { type: 'function', functionName, args, distinct };
       }
     }
 
     // Parameter
-    if (token.type === "PARAMETER") {
+    if (token.type === 'PARAMETER') {
       this.advance();
-      return { type: "parameter", name: token.value };
+      return { type: 'parameter', name: token.value };
     }
 
     // Unary minus for negative numbers
-    if (token.type === "DASH") {
+    if (token.type === 'DASH') {
       this.advance(); // consume the dash
       const nextToken = this.peek();
-      if (nextToken.type === "NUMBER") {
+      if (nextToken.type === 'NUMBER') {
         this.advance();
-        return { type: "literal", value: -this.parseNumber(nextToken.value) };
+        return { type: 'literal', value: -this.parseNumber(nextToken.value) };
       }
       // For more complex expressions, create a unary minus operation
       const operand = this.parsePrimaryExpression();
-      return { type: "binary", operator: "-", left: { type: "literal", value: 0 }, right: operand };
+      return {
+        type: 'binary',
+        operator: '-',
+        left: { type: 'literal', value: 0 },
+        right: operand,
+      };
     }
 
     // Literal values
-    if (token.type === "STRING") {
+    if (token.type === 'STRING') {
       this.advance();
-      return { type: "literal", value: token.value };
+      return { type: 'literal', value: token.value };
     }
 
-    if (token.type === "NUMBER") {
+    if (token.type === 'NUMBER') {
       this.advance();
-      const numberLiteralKind = token.value.includes(".") ? "float" : "integer";
-      return { type: "literal", value: this.parseNumber(token.value), raw: token.value, numberLiteralKind };
+      const numberLiteralKind = token.value.includes('.') ? 'float' : 'integer';
+      return {
+        type: 'literal',
+        value: this.parseNumber(token.value),
+        raw: token.value,
+        numberLiteralKind,
+      };
     }
 
-    if (token.type === "KEYWORD") {
-      if (token.value === "TRUE") {
+    if (token.type === 'KEYWORD') {
+      if (token.value === 'TRUE') {
         this.advance();
-        return { type: "literal", value: true };
+        return { type: 'literal', value: true };
       }
-      if (token.value === "FALSE") {
+      if (token.value === 'FALSE') {
         this.advance();
-        return { type: "literal", value: false };
+        return { type: 'literal', value: false };
       }
-      if (token.value === "NULL") {
+      if (token.value === 'NULL') {
         this.advance();
-        return { type: "literal", value: null };
+        return { type: 'literal', value: null };
       }
     }
 
     // Variable or property access
     // Allow keywords to be used as variable names when not in keyword position
-    if (token.type === "IDENTIFIER" || (token.type === "KEYWORD" && !["TRUE", "FALSE", "NULL", "CASE"].includes(token.value))) {
+    if (
+      token.type === 'IDENTIFIER' ||
+      (token.type === 'KEYWORD' &&
+        !['TRUE', 'FALSE', 'NULL', 'CASE'].includes(token.value))
+    ) {
       const tok = this.advance();
       // Use original casing for keywords used as identifiers
       const variable = tok.originalValue || tok.value;
 
-      if (this.check("DOT")) {
+      if (this.check('DOT')) {
         this.advance();
         // Property names can also be keywords (like 'count', 'order', etc.)
         const property = this.expectIdentifierOrKeyword();
-        
+
         // Check for namespaced function call: namespace.function(args)
         // e.g., duration.between(), duration.inMonths(), etc.
-        if (this.check("LPAREN")) {
+        if (this.check('LPAREN')) {
           this.advance(); // consume (
           // Convert to uppercase for consistency with other functions
           const functionName = `${variable}.${property}`.toUpperCase();
           const args: Expression[] = [];
-          
+
           // Check for DISTINCT keyword (for aggregation functions)
           let distinct: boolean | undefined;
-          if (this.checkKeyword("DISTINCT")) {
+          if (this.checkKeyword('DISTINCT')) {
             this.advance();
             distinct = true;
           }
-          
-          if (!this.check("RPAREN")) {
+
+          if (!this.check('RPAREN')) {
             do {
               if (args.length > 0) {
-                this.expect("COMMA");
+                this.expect('COMMA');
               }
               args.push(this.parseReturnExpression());
-            } while (this.check("COMMA"));
+            } while (this.check('COMMA'));
           }
-          
-          this.expect("RPAREN");
-          return { type: "function", functionName, args, distinct };
+
+          this.expect('RPAREN');
+          return { type: 'function', functionName, args, distinct };
         }
-        
-        return { type: "property", variable, property };
+
+        return { type: 'property', variable, property };
       }
 
-      return { type: "variable", variable };
+      return { type: 'variable', variable };
     }
 
     throw new Error(`Expected expression, got ${token.type} '${token.value}'`);
   }
 
   private parseCaseExpression(): Expression {
-    this.expect("KEYWORD", "CASE");
-    
+    this.expect('KEYWORD', 'CASE');
+
     // Check for simple form: CASE expr WHEN val THEN ...
     // vs searched form: CASE WHEN condition THEN ...
     let caseExpr: Expression | undefined;
-    
+
     // If the next token is not WHEN, it's a simple form with an expression
-    if (!this.checkKeyword("WHEN")) {
+    if (!this.checkKeyword('WHEN')) {
       caseExpr = this.parseExpression();
     }
-    
+
     const whens: CaseWhen[] = [];
-    
+
     // Parse WHEN ... THEN ... clauses
-    while (this.checkKeyword("WHEN")) {
+    while (this.checkKeyword('WHEN')) {
       this.advance(); // consume WHEN
-      
+
       let condition: WhereCondition;
-      
+
       if (caseExpr) {
         // Simple form: CASE expr WHEN value THEN ...
         // The value is compared for equality with caseExpr
         const whenValue = this.parseExpression();
         // Create an equality comparison condition
         condition = {
-          type: "comparison",
+          type: 'comparison',
           left: caseExpr,
           right: whenValue,
-          operator: "="
+          operator: '=',
         };
       } else {
         // Searched form: CASE WHEN condition THEN ...
         condition = this.parseWhereCondition();
       }
-      
-      this.expect("KEYWORD", "THEN");
+
+      this.expect('KEYWORD', 'THEN');
       const result = this.parseExpression();
-      
+
       whens.push({ condition, result });
     }
-    
+
     // Parse optional ELSE
     let elseExpr: Expression | undefined;
-    if (this.checkKeyword("ELSE")) {
+    if (this.checkKeyword('ELSE')) {
       this.advance();
       elseExpr = this.parseExpression();
     }
-    
-    this.expect("KEYWORD", "END");
-    
+
+    this.expect('KEYWORD', 'END');
+
     return {
-      type: "case",
+      type: 'case',
       expression: caseExpr,
       whens,
       elseExpr,
@@ -3703,49 +4293,49 @@ export class Parser {
   }
 
   private parseObjectLiteral(): Expression {
-    this.expect("LBRACE");
+    this.expect('LBRACE');
     const properties: ObjectProperty[] = [];
 
-    if (!this.check("RBRACE")) {
+    if (!this.check('RBRACE')) {
       do {
         if (properties.length > 0) {
-          this.expect("COMMA");
+          this.expect('COMMA');
         }
 
         // Property keys can be identifiers or keywords
         const key = this.expectIdentifierOrKeyword();
-        this.expect("COLON");
+        this.expect('COLON');
         // Use parseReturnExpression to support comparisons like {foo: a.name='Andres'}
         const value = this.parseReturnExpression();
         properties.push({ key, value });
-      } while (this.check("COMMA"));
+      } while (this.check('COMMA'));
     }
 
-    this.expect("RBRACE");
-    return { type: "object", properties };
+    this.expect('RBRACE');
+    return { type: 'object', properties };
   }
 
   private parseListLiteralExpression(): Expression {
-    this.expect("LBRACKET");
-    
+    this.expect('LBRACKET');
+
     // Check for pattern comprehension: [(pattern) WHERE cond | expr]
     // Pattern comprehensions start with a node pattern (parenthesis)
-    if (this.check("LPAREN")) {
+    if (this.check('LPAREN')) {
       return this.parsePatternComprehension();
     }
-    
+
     // Check for list comprehension: [x IN list WHERE cond | expr]
     // Or named path in pattern comprehension: [p = (pattern) | p]
     // We need to look ahead to see which case this is
-    if (this.check("IDENTIFIER")) {
+    if (this.check('IDENTIFIER')) {
       const savedPos = this.pos;
       const identifier = this.advance().value;
-      
-      if (this.checkKeyword("IN")) {
+
+      if (this.checkKeyword('IN')) {
         // This is a list comprehension
         this.advance(); // consume "IN"
         return this.parseListComprehension(identifier);
-      } else if (this.check("EQUALS")) {
+      } else if (this.check('EQUALS')) {
         // This is a named path in pattern comprehension: [p = (pattern) | p]
         this.advance(); // consume "="
         return this.parsePatternComprehension(identifier);
@@ -3754,30 +4344,33 @@ export class Parser {
         this.pos = savedPos;
       }
     }
-    
+
     // Regular list literal - elements can be full expressions (including objects)
     const elements: Expression[] = [];
 
-    if (!this.check("RBRACKET")) {
+    if (!this.check('RBRACKET')) {
       do {
         if (elements.length > 0) {
-          this.expect("COMMA");
+          this.expect('COMMA');
         }
         elements.push(this.parseExpression());
-      } while (this.check("COMMA"));
+      } while (this.check('COMMA'));
     }
 
-    this.expect("RBRACKET");
-    
+    this.expect('RBRACKET');
+
     // If all elements are literals, return as literal list
     // Otherwise wrap in a function-like expression for arrays of expressions
-    const allLiterals = elements.every(e => e.type === "literal");
+    const allLiterals = elements.every((e) => e.type === 'literal');
     if (allLiterals) {
-      return { type: "literal", value: elements.map(e => e.value) as PropertyValue[] };
+      return {
+        type: 'literal',
+        value: elements.map((e) => e.value) as PropertyValue[],
+      };
     }
-    
+
     // For lists containing expressions, use a special function type
-    return { type: "function", functionName: "LIST", args: elements };
+    return { type: 'function', functionName: 'LIST', args: elements };
   }
 
   /**
@@ -3788,25 +4381,25 @@ export class Parser {
   private parseListComprehension(variable: string): Expression {
     // Parse the source list expression
     const listExpr = this.parseExpression();
-    
+
     // Check for optional WHERE filter
     let filterCondition: WhereCondition | undefined;
-    if (this.checkKeyword("WHERE")) {
+    if (this.checkKeyword('WHERE')) {
       this.advance();
       filterCondition = this.parseListComprehensionCondition(variable);
     }
-    
+
     // Check for optional map projection (| expr)
     let mapExpr: Expression | undefined;
-    if (this.check("PIPE")) {
+    if (this.check('PIPE')) {
       this.advance();
       mapExpr = this.parseListComprehensionExpression(variable);
     }
-    
-    this.expect("RBRACKET");
-    
+
+    this.expect('RBRACKET');
+
     return {
-      type: "listComprehension",
+      type: 'listComprehension',
       variable,
       listExpr,
       filterCondition,
@@ -3823,25 +4416,25 @@ export class Parser {
   private parsePatternComprehension(pathVariable?: string): Expression {
     // Parse the pattern (reuse existing pattern parsing)
     const patterns = this.parsePatternChain();
-    
+
     // Check for optional WHERE filter
     let filterCondition: WhereCondition | undefined;
-    if (this.checkKeyword("WHERE")) {
+    if (this.checkKeyword('WHERE')) {
       this.advance();
       filterCondition = this.parseOrCondition();
     }
-    
+
     // Check for optional map projection (| expr)
     let mapExpr: Expression | undefined;
-    if (this.check("PIPE")) {
+    if (this.check('PIPE')) {
       this.advance();
       mapExpr = this.parseExpression();
     }
-    
-    this.expect("RBRACKET");
-    
+
+    this.expect('RBRACKET');
+
     return {
-      type: "patternComprehension",
+      type: 'patternComprehension',
       patterns,
       filterCondition,
       mapExpr,
@@ -3854,23 +4447,28 @@ export class Parser {
    * Syntax: ALL/ANY/NONE/SINGLE(variable IN listExpr WHERE filterCondition)
    * WHERE is required for list predicates.
    */
-  private parseListPredicate(predicateType: "ALL" | "ANY" | "NONE" | "SINGLE", variable: string): Expression {
+  private parseListPredicate(
+    predicateType: 'ALL' | 'ANY' | 'NONE' | 'SINGLE',
+    variable: string,
+  ): Expression {
     // Parse the source list expression
     const listExpr = this.parseExpression();
-    
+
     // WHERE clause is required for list predicates
-    if (!this.checkKeyword("WHERE")) {
-      throw new Error(`Expected WHERE after list expression in ${predicateType}()`);
+    if (!this.checkKeyword('WHERE')) {
+      throw new Error(
+        `Expected WHERE after list expression in ${predicateType}()`,
+      );
     }
     this.advance(); // consume WHERE
-    
+
     // Parse the filter condition
     const filterCondition = this.parseListComprehensionCondition(variable);
-    
-    this.expect("RPAREN");
-    
+
+    this.expect('RPAREN');
+
     return {
-      type: "listPredicate",
+      type: 'listPredicate',
       predicateType,
       variable,
       listExpr,
@@ -3899,39 +4497,39 @@ export class Parser {
    * This syntax allows projecting selected properties from a node/map.
    */
   private parseMapProjection(source: Expression): Expression {
-    this.expect("LBRACE"); // consume {
-    
+    this.expect('LBRACE'); // consume {
+
     const items: MapProjectionItem[] = [];
-    
-    while (!this.check("RBRACE") && !this.isAtEnd()) {
+
+    while (!this.check('RBRACE') && !this.isAtEnd()) {
       if (items.length > 0) {
-        this.expect("COMMA");
+        this.expect('COMMA');
       }
-      
+
       // Check for .* (project all properties)
-      if (this.check("DOT")) {
+      if (this.check('DOT')) {
         this.advance(); // consume .
-        if (this.check("STAR")) {
+        if (this.check('STAR')) {
           this.advance(); // consume *
-          items.push({ type: "allProperties" });
+          items.push({ type: 'allProperties' });
         } else {
           // .property shorthand
           const property = this.expectIdentifierOrKeyword();
-          items.push({ type: "property", property });
+          items.push({ type: 'property', property });
         }
       } else {
         // key: value syntax
         const key = this.expectIdentifierOrKeyword();
-        this.expect("COLON");
+        this.expect('COLON');
         const value = this.parseExpression();
-        items.push({ type: "literal", key, value });
+        items.push({ type: 'literal', key, value });
       }
     }
-    
-    this.expect("RBRACE"); // consume }
-    
+
+    this.expect('RBRACE'); // consume }
+
     return {
-      type: "mapProjection",
+      type: 'mapProjection',
       projectionSource: source,
       projectionItems: items,
     };
@@ -3951,7 +4549,7 @@ export class Parser {
   }
 
   private isAtEnd(): boolean {
-    return this.peek().type === "EOF";
+    return this.peek().type === 'EOF';
   }
 
   private check(type: TokenType): boolean {
@@ -3960,29 +4558,37 @@ export class Parser {
 
   private checkKeyword(keyword: string): boolean {
     const token = this.peek();
-    return token.type === "KEYWORD" && token.value === keyword;
+    return token.type === 'KEYWORD' && token.value === keyword;
   }
 
   private expect(type: TokenType, value?: string): Token {
     const token = this.peek();
     if (token.type !== type || (value !== undefined && token.value !== value)) {
-      throw new Error(`Expected ${type}${value ? ` '${value}'` : ""}, got ${token.type} '${token.value}'`);
+      throw new Error(
+        `Expected ${type}${value ? ` '${value}'` : ''}, got ${token.type} '${
+          token.value
+        }'`,
+      );
     }
     return this.advance();
   }
 
   private expectIdentifier(): string {
     const token = this.peek();
-    if (token.type !== "IDENTIFIER") {
-      throw new Error(`Expected identifier, got ${token.type} '${token.value}'`);
+    if (token.type !== 'IDENTIFIER') {
+      throw new Error(
+        `Expected identifier, got ${token.type} '${token.value}'`,
+      );
     }
     return this.advance().value;
   }
 
   private expectIdentifierOrKeyword(): string {
     const token = this.peek();
-    if (token.type !== "IDENTIFIER" && token.type !== "KEYWORD") {
-      throw new Error(`Expected identifier or keyword, got ${token.type} '${token.value}'`);
+    if (token.type !== 'IDENTIFIER' && token.type !== 'KEYWORD') {
+      throw new Error(
+        `Expected identifier or keyword, got ${token.type} '${token.value}'`,
+      );
     }
     // Keywords preserve their original casing when used as identifiers (e.g., map keys)
     // originalValue stores the original casing before uppercasing for keyword matching
@@ -3992,8 +4598,10 @@ export class Parser {
 
   private expectLabelOrType(): string {
     const token = this.peek();
-    if (token.type !== "IDENTIFIER" && token.type !== "KEYWORD") {
-      throw new Error(`Expected label or type, got ${token.type} '${token.value}'`);
+    if (token.type !== 'IDENTIFIER' && token.type !== 'KEYWORD') {
+      throw new Error(
+        `Expected label or type, got ${token.type} '${token.value}'`,
+      );
     }
     this.advance();
     // Labels and types preserve their original case from the query

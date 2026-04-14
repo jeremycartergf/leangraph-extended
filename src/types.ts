@@ -15,7 +15,7 @@ export interface LeanGraphOptions {
    * - test: Embedded SQLite, in-memory (resets on restart)
    * @default LEANGRAPH_MODE env var or 'local'
    */
-  mode?: "local" | "remote" | "test";
+  mode?: 'local' | 'remote' | 'test';
 
   /**
    * Base URL of the LeanGraph server.
@@ -96,7 +96,7 @@ export interface LeanGraphClient {
    */
   query<T = Record<string, unknown>>(
     cypher: string,
-    params?: Record<string, unknown>
+    params?: Record<string, unknown>,
   ): Promise<T[]>;
 
   /**
@@ -105,7 +105,7 @@ export interface LeanGraphClient {
    */
   queryRaw<T = Record<string, unknown>>(
     cypher: string,
-    params?: Record<string, unknown>
+    params?: Record<string, unknown>,
   ): Promise<QueryResponse<T>>;
 
   /**
@@ -120,7 +120,7 @@ export interface LeanGraphClient {
    */
   createNode(
     label: string,
-    properties?: Record<string, unknown>
+    properties?: Record<string, unknown>,
   ): Promise<string>;
 
   /**
@@ -130,7 +130,7 @@ export interface LeanGraphClient {
     sourceId: string,
     type: string,
     targetId: string,
-    properties?: Record<string, unknown>
+    properties?: Record<string, unknown>,
   ): Promise<void>;
 
   /**
@@ -139,7 +139,7 @@ export interface LeanGraphClient {
    */
   getNode(
     label: string,
-    filter: Record<string, unknown>
+    filter: Record<string, unknown>,
   ): Promise<NodeResult | null>;
 
   /**
@@ -185,10 +185,10 @@ export class LeanGraphError extends Error {
       position?: number;
       line?: number;
       column?: number;
-    }
+    },
   ) {
     super(message);
-    this.name = "LeanGraphError";
+    this.name = 'LeanGraphError';
     this.position = options?.position;
     this.line = options?.line;
     this.column = options?.column;

@@ -1,7 +1,7 @@
 // CLI Helper Functions
 
-import * as fs from "fs";
-import * as path from "path";
+import * as fs from 'fs';
+import * as path from 'path';
 
 // ============================================================================
 // Types
@@ -17,17 +17,17 @@ export interface ApiKeyConfig {
 // ============================================================================
 
 export function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
+  if (bytes === 0) return '0 B';
   const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
+  const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
 }
 
 export function formatValue(val: unknown): string {
-  if (val === null) return "null";
-  if (val === undefined) return "";
-  if (typeof val === "object") return JSON.stringify(val);
+  if (val === null) return 'null';
+  if (val === undefined) return '';
+  if (typeof val === 'object') return JSON.stringify(val);
   return String(val);
 }
 
@@ -36,14 +36,14 @@ export function formatValue(val: unknown): string {
 // ============================================================================
 
 export function getApiKeysPath(dataPath: string): string {
-  return path.join(dataPath, "api-keys.json");
+  return path.join(dataPath, 'api-keys.json');
 }
 
 export function loadApiKeys(dataPath: string): Record<string, ApiKeyConfig> {
   const keysFile = getApiKeysPath(dataPath);
   if (fs.existsSync(keysFile)) {
     try {
-      return JSON.parse(fs.readFileSync(keysFile, "utf-8"));
+      return JSON.parse(fs.readFileSync(keysFile, 'utf-8'));
     } catch {
       return {};
     }
@@ -53,10 +53,10 @@ export function loadApiKeys(dataPath: string): Record<string, ApiKeyConfig> {
 
 export function saveApiKeys(
   dataPath: string,
-  keys: Record<string, ApiKeyConfig>
+  keys: Record<string, ApiKeyConfig>,
 ): void {
   const keysFile = getApiKeysPath(dataPath);
-  fs.writeFileSync(keysFile, JSON.stringify(keys, null, 2) + "\n");
+  fs.writeFileSync(keysFile, JSON.stringify(keys, null, 2) + '\n');
 }
 
 // ============================================================================
@@ -76,20 +76,20 @@ export function ensureDataDir(dataPath: string): void {
 export function formatTableRow(
   columns: string[],
   row: Record<string, unknown>,
-  widths: Record<string, number>
+  widths: Record<string, number>,
 ): string {
   return columns
     .map((col) => {
       const val = formatValue(row[col]);
       return val.slice(0, widths[col]).padEnd(widths[col]);
     })
-    .join(" | ");
+    .join(' | ');
 }
 
 export function calculateColumnWidths(
   columns: string[],
   rows: Record<string, unknown>[],
-  maxWidth: number = 40
+  maxWidth: number = 40,
 ): Record<string, number> {
   const widths: Record<string, number> = {};
 
@@ -123,8 +123,8 @@ export function listProjects(dataPath: string): string[] {
 
   return fs
     .readdirSync(dataPath)
-    .filter((f) => f.endsWith(".db"))
-    .map((f) => f.replace(".db", ""));
+    .filter((f) => f.endsWith('.db'))
+    .map((f) => f.replace('.db', ''));
 }
 
 export function projectExists(dataPath: string, project: string): boolean {
@@ -134,7 +134,7 @@ export function projectExists(dataPath: string, project: string): boolean {
 
 export function getProjectKeyCount(
   keys: Record<string, ApiKeyConfig>,
-  project: string
+  project: string,
 ): number {
   return Object.values(keys).filter((config) => config.project === project)
     .length;

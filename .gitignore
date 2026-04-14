@@ -39,3 +39,6 @@ npm-debug.log*
 # Test coverage
 coverage/
 packages/server/test/tck/openCypher/
+
+# Private tests
+src/tests

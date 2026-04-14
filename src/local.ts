@@ -1,37 +1,42 @@
 // LeanGraph - Local Embedded Client
 // Uses SQLite directly without HTTP
 
-import * as fs from "fs";
-import * as path from "path";
-import { GraphDatabase } from "./db.js";
-import { Executor } from "./executor.js";
+import * as fs from 'fs';
+import * as path from 'path';
+import { GraphDatabase } from './db';
+import { Executor } from './executor';
 import type {
   LeanGraphClient,
   LeanGraphOptions,
   QueryResponse,
   HealthResponse,
   NodeResult,
-} from "./types.js";
-import { LeanGraphError } from "./types.js";
+} from './types';
+import { LeanGraphError } from './types';
 
 /**
  * Create a local embedded LeanGraph client.
  * This client uses SQLite directly without any HTTP layer.
  */
-export function createLocalClient(options: LeanGraphOptions = {}): LeanGraphClient {
-  const mode = options.mode ?? "local";
+export function createLocalClient(
+  options: LeanGraphOptions = {},
+): LeanGraphClient {
+  const mode = options.mode ?? 'local';
   const project = options.project ?? process.env.LEANGRAPH_PROJECT;
 
   if (!project) {
-    throw new Error("Project is required. Set via options.project or LEANGRAPH_PROJECT env var.");
+    throw new Error(
+      'Project is required. Set via options.project or LEANGRAPH_PROJECT env var.',
+    );
   }
 
   // Determine database path
   let dbPath: string;
-  const dataPath = options.dataPath ?? process.env.LEANGRAPH_DATA_PATH ?? "./data";
+  const dataPath =
+    options.dataPath ?? process.env.LEANGRAPH_DATA_PATH ?? './data';
 
-  if (mode === "test" || dataPath === ":memory:") {
-    dbPath = ":memory:";
+  if (mode === 'test' || dataPath === ':memory:') {
+    dbPath = ':memory:';
   } else {
     if (!fs.existsSync(dataPath)) {
       fs.mkdirSync(dataPath, { recursive: true });
@@ -47,7 +52,7 @@ export function createLocalClient(options: LeanGraphOptions = {}): LeanGraphClie
   return {
     async query<T = Record<string, unknown>>(
       cypher: string,
-      params: Record<string, unknown> = {}
+      params: Record<string, unknown> = {},
     ): Promise<T[]> {
       const result = executor.execute(cypher, params);
       if (!result.success) {
@@ -62,7 +67,7 @@ export function createLocalClient(options: LeanGraphOptions = {}): LeanGraphClie
 
     async queryRaw<T = Record<string, unknown>>(
       cypher: string,
-      params: Record<string, unknown> = {}
+      params: Record<string, unknown> = {},
     ): Promise<QueryResponse<T>> {
       const result = executor.execute(cypher, params);
       if (!result.success) {
@@ -81,7 +86,7 @@ export function createLocalClient(options: LeanGraphOptions = {}): LeanGraphClie
 
     async execute(
       cypher: string,
-      params: Record<string, unknown> = {}
+      params: Record<string, unknown> = {},
     ): Promise<void> {
       const result = executor.execute(cypher, params);
       if (!result.success) {
@@ -95,10 +100,10 @@ export function createLocalClient(options: LeanGraphOptions = {}): LeanGraphClie
 
     async createNode(
       label: string,
-      properties: Record<string, unknown> = {}
+      properties: Record<string, unknown> = {},
     ): Promise<string> {
       const propKeys = Object.keys(properties);
-      const propAssignments = propKeys.map((k) => `${k}: $${k}`).join(", ");
+      const propAssignments = propKeys.map((k) => `${k}: $${k}`).join(', ');
 
       const cypher = `CREATE (n:${label} {${propAssignments}}) RETURN id(n) as id`;
       const result = await this.query<{ id: string }>(cypher, properties);
@@ -110,13 +115,13 @@ export function createLocalClient(options: LeanGraphOptions = {}): LeanGraphClie
       sourceId: string,
       type: string,
       targetId: string,
-      properties: Record<string, unknown> = {}
+      properties: Record<string, unknown> = {},
     ): Promise<void> {
       const propKeys = Object.keys(properties);
       const propAssignments =
         propKeys.length > 0
-          ? ` {${propKeys.map((k) => `${k}: $${k}`).join(", ")}}`
-          : "";
+          ? ` {${propKeys.map((k) => `${k}: $${k}`).join(', ')}}`
+          : '';
 
       const cypher = `
         MATCH (source), (target)
@@ -129,10 +134,10 @@ export function createLocalClient(options: LeanGraphOptions = {}): LeanGraphClie
 
     async getNode(
       label: string,
-      filter: Record<string, unknown>
+      filter: Record<string, unknown>,
     ): Promise<NodeResult | null> {
       const filterKeys = Object.keys(filter);
-      const filterProps = filterKeys.map((k) => `${k}: $${k}`).join(", ");
+      const filterProps = filterKeys.map((k) => `${k}: $${k}`).join(', ');
 
       const cypher = `MATCH (n:${label} {${filterProps}}) RETURN n LIMIT 1`;
       const result = await this.query<{ n: NodeResult }>(cypher, filter);
@@ -141,15 +146,15 @@ export function createLocalClient(options: LeanGraphOptions = {}): LeanGraphClie
     },
 
     async deleteNode(id: string): Promise<void> {
-      await this.execute("MATCH (n) WHERE id(n) = $id DETACH DELETE n", { id });
+      await this.execute('MATCH (n) WHERE id(n) = $id DETACH DELETE n', { id });
     },
 
     async updateNode(
       id: string,
-      properties: Record<string, unknown>
+      properties: Record<string, unknown>,
     ): Promise<void> {
       const propKeys = Object.keys(properties);
-      const setClause = propKeys.map((k) => `n.${k} = $${k}`).join(", ");
+      const setClause = propKeys.map((k) => `n.${k} = $${k}`).join(', ');
 
       const cypher = `MATCH (n) WHERE id(n) = $id SET ${setClause}`;
       await this.execute(cypher, { id, ...properties });
@@ -157,7 +162,7 @@ export function createLocalClient(options: LeanGraphOptions = {}): LeanGraphClie
 
     async health(): Promise<HealthResponse> {
       return {
-        status: "ok",
+        status: 'ok',
         timestamp: new Date().toISOString(),
       };
     },

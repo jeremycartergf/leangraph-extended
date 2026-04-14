@@ -23,7 +23,7 @@ export interface Path {
   edges: MemoryEdge[];
 }
 
-export type Direction = "out" | "in" | "both";
+export type Direction = 'out' | 'in' | 'both';
 
 /** Row format from SQLite nodes table */
 export interface NodeRow {
@@ -127,7 +127,7 @@ export class MemoryGraph {
     const result: MemoryNode[] = [];
     const seen = new Set<string>();
 
-    if (direction === "out" || direction === "both") {
+    if (direction === 'out' || direction === 'both') {
       for (const edge of this.getOutEdges(nodeId, type)) {
         const node = this.nodes.get(edge.targetId);
         if (node && !seen.has(node.id)) {
@@ -137,7 +137,7 @@ export class MemoryGraph {
       }
     }
 
-    if (direction === "in" || direction === "both") {
+    if (direction === 'in' || direction === 'both') {
       for (const edge of this.getInEdges(nodeId, type)) {
         const node = this.nodes.get(edge.sourceId);
         if (node && !seen.has(node.id)) {
@@ -160,7 +160,7 @@ export class MemoryGraph {
     edgeType: string | null,
     minDepth: number,
     maxDepth: number,
-    direction: Direction
+    direction: Direction,
   ): Generator<Path> {
     const startNode = this.nodes.get(startId);
     if (!startNode) {
@@ -197,12 +197,15 @@ export class MemoryGraph {
       // Get edges to traverse
       const edgesToTraverse: MemoryEdge[] = [];
 
-      if (direction === "out" || direction === "both") {
-        const outEdges = this.getOutEdges(current.nodeId, edgeType ?? undefined);
+      if (direction === 'out' || direction === 'both') {
+        const outEdges = this.getOutEdges(
+          current.nodeId,
+          edgeType ?? undefined,
+        );
         edgesToTraverse.push(...outEdges);
       }
 
-      if (direction === "in" || direction === "both") {
+      if (direction === 'in' || direction === 'both') {
         const inEdges = this.getInEdges(current.nodeId, edgeType ?? undefined);
         edgesToTraverse.push(...inEdges);
       }

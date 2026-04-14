@@ -3,9 +3,9 @@
  * discovery and in-memory graph traversal for pattern matching.
  */
 
-import { GraphDatabase } from "../db.js";
-import { SubgraphLoader } from "./subgraph-loader.js";
-import { MemoryGraph, MemoryNode, MemoryEdge, Direction } from "./memory-graph.js";
+import { GraphDatabase } from '../db';
+import { SubgraphLoader } from './subgraph-loader';
+import { MemoryGraph, MemoryNode, MemoryEdge, Direction } from './memory-graph';
 
 export interface VarLengthPatternParams {
   /** Label of the anchor node (starting point) */
@@ -80,8 +80,6 @@ export interface PatternChainParams {
 /** Result type - maps variable names to MemoryNode */
 export type ChainResultRaw = Map<string, MemoryNode>;
 
-
-
 export class HybridExecutor {
   private loader: SubgraphLoader;
 
@@ -96,7 +94,7 @@ export class HybridExecutor {
    * Returns results in the same format as the SQL executor.
    */
   executeVarLengthPattern(
-    params: VarLengthPatternParams
+    params: VarLengthPatternParams,
   ): Record<string, unknown>[] {
     const rawResults = this.executeVarLengthPatternRaw(params);
 
@@ -139,7 +137,7 @@ export class HybridExecutor {
       anchorNodeIds: anchorIds,
       maxDepth: varMaxDepth + 1,
       edgeTypes: null, // Load all edge types since we need finalEdgeType too
-      direction: "both", // Load all directions for flexibility
+      direction: 'both', // Load all directions for flexibility
     });
 
     // 3. Traverse in-memory to find pattern matches
@@ -155,7 +153,7 @@ export class HybridExecutor {
         varEdgeType,
         varMinDepth,
         varMaxDepth,
-        varDirection
+        varDirection,
       )) {
         // The middle node is the last node in the var-length path
         const middleNode = path.nodes[path.nodes.length - 1];
@@ -175,11 +173,15 @@ export class HybridExecutor {
           graph,
           middleNode.id,
           finalEdgeType,
-          finalDirection
+          finalDirection,
         );
 
         for (const edge of finalEdges) {
-          const finalNodeId = this.getTargetNodeId(edge, middleNode.id, finalDirection);
+          const finalNodeId = this.getTargetNodeId(
+            edge,
+            middleNode.id,
+            finalDirection,
+          );
           const finalNode = graph.getNode(finalNodeId);
 
           if (!finalNode) continue;
@@ -208,12 +210,12 @@ export class HybridExecutor {
   /**
    * Execute a generalized pattern chain query.
    * Supports arbitrary length chains and multiple variable-length edges.
-   * 
+   *
    * Pattern examples:
    *   (a)-[*]->(b)-[:R1]->(c)-[:R2]->(d)  -- 4 nodes, var-length first
    *   (a)-[:R1]->(b)-[*]->(c)-[:R2]->(d)  -- var-length in middle
    *   (a)-[*]->(b)-[*]->(c)               -- multiple var-length
-   * 
+   *
    * Returns results as Maps from variable names to MemoryNodes.
    */
   executePatternChain(params: PatternChainParams): ChainResultRaw[] {
@@ -233,7 +235,7 @@ export class HybridExecutor {
       anchorNodeIds: anchorIds,
       maxDepth: totalMaxDepth,
       edgeTypes: null, // Load all edge types
-      direction: "both", // Load all directions for flexibility
+      direction: 'both', // Load all directions for flexibility
     });
 
     // 4. Traverse in-memory to find pattern matches
@@ -272,7 +274,7 @@ export class HybridExecutor {
     currentNode: MemoryNode,
     chain: Array<{ hop: ChainHop; node: ChainNode }>,
     hopIndex: number,
-    results: ChainResultRaw[]
+    results: ChainResultRaw[],
   ): void {
     // Base case: all hops matched
     if (hopIndex >= chain.length) {
@@ -288,7 +290,7 @@ export class HybridExecutor {
       hop.edgeType,
       hop.minHops,
       hop.maxHops,
-      hop.direction
+      hop.direction,
     )) {
       const targetNode = path.nodes[path.nodes.length - 1];
 
@@ -306,7 +308,14 @@ export class HybridExecutor {
       const newMatch = new Map(currentMatch);
       newMatch.set(targetNodeSpec.variable, targetNode);
 
-      this.matchChain(graph, newMatch, targetNode, chain, hopIndex + 1, results);
+      this.matchChain(
+        graph,
+        newMatch,
+        targetNode,
+        chain,
+        hopIndex + 1,
+        results,
+      );
     }
   }
 
@@ -328,15 +337,15 @@ export class HybridExecutor {
     graph: MemoryGraph,
     nodeId: string,
     edgeType: string,
-    direction: Direction
+    direction: Direction,
   ): MemoryEdge[] {
     const edges: MemoryEdge[] = [];
 
-    if (direction === "out" || direction === "both") {
+    if (direction === 'out' || direction === 'both') {
       edges.push(...graph.getOutEdges(nodeId, edgeType));
     }
 
-    if (direction === "in" || direction === "both") {
+    if (direction === 'in' || direction === 'both') {
       edges.push(...graph.getInEdges(nodeId, edgeType));
     }
 
@@ -349,14 +358,14 @@ export class HybridExecutor {
   private getTargetNodeId(
     edge: MemoryEdge,
     sourceNodeId: string,
-    direction: Direction
+    direction: Direction,
   ): string {
     // For outgoing: return targetId
     // For incoming: return sourceId
     // For both: return the other end
-    if (direction === "out") {
+    if (direction === 'out') {
       return edge.targetId;
-    } else if (direction === "in") {
+    } else if (direction === 'in') {
       return edge.sourceId;
     } else {
       // "both" - return the other end

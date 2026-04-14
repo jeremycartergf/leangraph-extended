@@ -1,10 +1,10 @@
 // HTTP Routes using Hono
 
-import { Hono, Context } from "hono";
-import { cors } from "hono/cors";
-import { DatabaseManager, GraphDatabase } from "./db.js";
-import { Executor, QueryResponse } from "./executor.js";
-import { ApiKeyStore, authMiddleware } from "./auth.js";
+import { Hono, Context } from 'hono';
+import { cors } from 'hono/cors';
+import { DatabaseManager } from './db';
+import { Executor } from './executor';
+import { ApiKeyStore, authMiddleware } from './auth';
 
 // ============================================================================
 // Types
@@ -27,8 +27,10 @@ export interface AppContext {
  * Default CORS configuration - restrictive by default.
  * In production, configure with specific allowed origins.
  */
-const DEFAULT_CORS_ORIGIN = process.env.CORS_ORIGIN || "http://localhost:3000";
-const ALLOWED_ORIGINS = process.env.CORS_ORIGINS?.split(",") || [DEFAULT_CORS_ORIGIN];
+const DEFAULT_CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:3000';
+const ALLOWED_ORIGINS = process.env.CORS_ORIGINS?.split(',') || [
+  DEFAULT_CORS_ORIGIN,
+];
 
 // ============================================================================
 // Security: Project Name Validation
@@ -45,7 +47,8 @@ function isValidProjectName(name: string): boolean {
   if (!name || name.length > MAX_PROJECT_NAME_LENGTH) return false;
   if (!PROJECT_NAME_REGEX.test(name)) return false;
   // Reject names that could be path traversal even if regex passes
-  if (name.includes("..") || name.includes("/") || name.includes("\\")) return false;
+  if (name.includes('..') || name.includes('/') || name.includes('\\'))
+    return false;
   return true;
 }
 
@@ -60,7 +63,10 @@ interface RateLimitEntry {
 
 const rateLimitMap = new Map<string, RateLimitEntry>();
 const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
-const RATE_LIMIT_MAX_REQUESTS = parseInt(process.env.RATE_LIMIT_MAX || "10000", 10); // per minute
+const RATE_LIMIT_MAX_REQUESTS = parseInt(
+  process.env.RATE_LIMIT_MAX || '10000',
+  10,
+); // per minute
 const RATE_LIMIT_MAX_ENTRIES = 100_000; // Maximum tracked IPs to prevent memory exhaustion
 const RATE_LIMIT_CLEANUP_INTERVAL_MS = 5 * 60_000; // Cleanup every 5 minutes
 
@@ -79,12 +85,19 @@ function startRateLimitCleanup(): void {
     }
   }, RATE_LIMIT_CLEANUP_INTERVAL_MS);
   // Allow the process to exit even if the timer is running
-  if (rateLimitCleanupTimer && typeof rateLimitCleanupTimer === "object" && "unref" in rateLimitCleanupTimer) {
+  if (
+    rateLimitCleanupTimer &&
+    typeof rateLimitCleanupTimer === 'object' &&
+    'unref' in rateLimitCleanupTimer
+  ) {
     rateLimitCleanupTimer.unref();
   }
 }
 
-function checkRateLimit(identifier: string): { allowed: boolean; retryAfter?: number } {
+function checkRateLimit(identifier: string): {
+  allowed: boolean;
+  retryAfter?: number;
+} {
   const now = Date.now();
   const entry = rateLimitMap.get(identifier);
 
@@ -109,7 +122,10 @@ function checkRateLimit(identifier: string): { allowed: boolean; retryAfter?: nu
   }
 
   if (entry.count >= RATE_LIMIT_MAX_REQUESTS) {
-    return { allowed: false, retryAfter: Math.ceil((entry.resetTime - now) / 1000) };
+    return {
+      allowed: false,
+      retryAfter: Math.ceil((entry.resetTime - now) / 1000),
+    };
   }
 
   entry.count++;
@@ -120,16 +136,17 @@ function checkRateLimit(identifier: string): { allowed: boolean; retryAfter?: nu
  * Trust proxy headers only when TRUST_PROXY env var is set.
  * Without a trusted proxy, X-Forwarded-For can be spoofed to bypass rate limits.
  */
-const TRUST_PROXY = process.env.TRUST_PROXY === "true" || process.env.TRUST_PROXY === "1";
+const TRUST_PROXY =
+  process.env.TRUST_PROXY === 'true' || process.env.TRUST_PROXY === '1';
 
 function getClientIdentifier(c: Context): string {
   if (TRUST_PROXY) {
     // Only trust proxy headers when explicitly configured
-    const forwardedFor = c.req.header("X-Forwarded-For");
+    const forwardedFor = c.req.header('X-Forwarded-For');
     if (forwardedFor) {
-      return forwardedFor.split(",")[0].trim();
+      return forwardedFor.split(',')[0].trim();
     }
-    const realIp = c.req.header("X-Real-Ip");
+    const realIp = c.req.header('X-Real-Ip');
     if (realIp) return realIp;
   }
   // Default: use remote address from the connection
@@ -137,7 +154,7 @@ function getClientIdentifier(c: Context): string {
   const connInfo = c.req.raw;
   // @ts-ignore - Node.js socket info
   const remoteAddr = connInfo?.socket?.remoteAddress;
-  return remoteAddr || "unknown";
+  return remoteAddr || 'unknown';
 }
 
 // ============================================================================
@@ -146,101 +163,110 @@ function getClientIdentifier(c: Context): string {
 
 export function createApp(
   dbManager: DatabaseManager,
-  apiKeyStore?: ApiKeyStore
+  apiKeyStore?: ApiKeyStore,
 ): Hono {
   const app = new Hono();
 
   // CORS middleware - must be before other middleware
-  app.use("*", cors({
-    origin: (origin) => {
-      // Requests with no origin (curl, server-to-server) get no CORS header
-      // This prevents browsers from caching a wildcard Access-Control-Allow-Origin
-      if (!origin) return DEFAULT_CORS_ORIGIN;
-      // Check if origin is in allowed list
-      if (ALLOWED_ORIGINS.includes(origin)) return origin;
-      // Default: deny
-      return null;
-    },
-    allowMethods: ["GET", "POST", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization"],
-    maxAge: 86400, // 24 hours
-  }));
+  app.use(
+    '*',
+    cors({
+      origin: (origin) => {
+        // Requests with no origin (curl, server-to-server) get no CORS header
+        // This prevents browsers from caching a wildcard Access-Control-Allow-Origin
+        if (!origin) return DEFAULT_CORS_ORIGIN;
+        // Check if origin is in allowed list
+        if (ALLOWED_ORIGINS.includes(origin)) return origin;
+        // Default: deny
+        return null;
+      },
+      allowMethods: ['GET', 'POST', 'OPTIONS'],
+      allowHeaders: ['Content-Type', 'Authorization'],
+      maxAge: 86400, // 24 hours
+    }),
+  );
 
   // Start rate limit cleanup timer
   startRateLimitCleanup();
 
   // Security headers middleware
-  app.use("*", async (c, next) => {
+  app.use('*', async (c, next) => {
     await next();
-    c.header("X-Content-Type-Options", "nosniff");
-    c.header("X-Frame-Options", "DENY");
-    c.header("X-XSS-Protection", "0"); // Disabled in favor of CSP; legacy header can cause issues
-    c.header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
-    c.header("Referrer-Policy", "no-referrer");
-    c.header("Cache-Control", "no-store");
-    c.header("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    c.header('X-Content-Type-Options', 'nosniff');
+    c.header('X-Frame-Options', 'DENY');
+    c.header('X-XSS-Protection', '0'); // Disabled in favor of CSP; legacy header can cause issues
+    c.header(
+      'Content-Security-Policy',
+      "default-src 'none'; frame-ancestors 'none'",
+    );
+    c.header('Referrer-Policy', 'no-referrer');
+    c.header('Cache-Control', 'no-store');
+    c.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     // HSTS: Instruct browsers to always use HTTPS (1 year, include subdomains)
-    c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    c.header(
+      'Strict-Transport-Security',
+      'max-age=31536000; includeSubDomains',
+    );
   });
 
   // Add auth middleware if API key store is provided
   if (apiKeyStore && apiKeyStore.hasKeys()) {
-    app.use("*", authMiddleware(apiKeyStore));
+    app.use('*', authMiddleware(apiKeyStore));
   }
 
   // ============================================================================
   // Health Check
   // ============================================================================
 
-  app.get("/health", (c) => {
-    return c.json({ status: "ok", timestamp: new Date().toISOString() });
+  app.get('/health', (c) => {
+    return c.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
-  app.get("/api/health", (c) => {
-    return c.json({ status: "ok", timestamp: new Date().toISOString() });
+  app.get('/api/health', (c) => {
+    return c.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
   // ============================================================================
   // Query Endpoint
   // ============================================================================
 
-  app.post("/query/:project", async (c) => {
+  app.post('/query/:project', async (c) => {
     // Rate limiting check
     const clientId = getClientIdentifier(c);
     const rateLimit = checkRateLimit(clientId);
     if (!rateLimit.allowed) {
-      c.header("Retry-After", String(rateLimit.retryAfter));
+      c.header('Retry-After', String(rateLimit.retryAfter));
       return c.json(
         {
           success: false,
-          error: { message: "Rate limit exceeded. Please try again later." },
+          error: { message: 'Rate limit exceeded. Please try again later.' },
         },
-        429
+        429,
       );
     }
 
     // Content-Type validation
-    const contentType = c.req.header("Content-Type");
-    if (!contentType || !contentType.includes("application/json")) {
+    const contentType = c.req.header('Content-Type');
+    if (!contentType || !contentType.includes('application/json')) {
       return c.json(
         {
           success: false,
-          error: { message: "Content-Type must be application/json" },
+          error: { message: 'Content-Type must be application/json' },
         },
-        415
+        415,
       );
     }
 
-    const project = c.req.param("project");
+    const project = c.req.param('project');
 
     // Validate project name to prevent path traversal
     if (!isValidProjectName(project)) {
       return c.json(
         {
           success: false,
-          error: { message: "Invalid project name" },
+          error: { message: 'Invalid project name' },
         },
-        400
+        400,
       );
     }
 
@@ -252,20 +278,20 @@ export function createApp(
       return c.json(
         {
           success: false,
-          error: { message: "Invalid JSON body" },
+          error: { message: 'Invalid JSON body' },
         },
-        400
+        400,
       );
     }
 
     // Validate request
-    if (!body.cypher || typeof body.cypher !== "string") {
+    if (!body.cypher || typeof body.cypher !== 'string') {
       return c.json(
         {
           success: false,
           error: { message: "Missing or invalid 'cypher' field" },
         },
-        400
+        400,
       );
     }
 
@@ -275,9 +301,11 @@ export function createApp(
       return c.json(
         {
           success: false,
-          error: { message: `Query exceeds maximum length of ${MAX_QUERY_LENGTH} characters` },
+          error: {
+            message: `Query exceeds maximum length of ${MAX_QUERY_LENGTH} characters`,
+          },
         },
-        400
+        400,
       );
     }
 
@@ -291,18 +319,28 @@ export function createApp(
     if (!result.success) {
       // Sanitize internal error messages to prevent information disclosure
       const safeMessage = result.error.message
-        .replace(/Maximum call stack size exceeded/g, "Query too complex or deeply nested")
-        .replace(/SQLITE_ERROR: /g, "")
-        .replace(/at .+\(.+\)/g, ""); // Strip stack trace fragments
-      return c.json({
-        success: false,
-        error: {
-          message: safeMessage,
-          ...(result.error.position !== undefined && { position: result.error.position }),
-          ...(result.error.line !== undefined && { line: result.error.line }),
-          ...(result.error.column !== undefined && { column: result.error.column }),
+        .replace(
+          /Maximum call stack size exceeded/g,
+          'Query too complex or deeply nested',
+        )
+        .replace(/SQLITE_ERROR: /g, '')
+        .replace(/at .+\(.+\)/g, ''); // Strip stack trace fragments
+      return c.json(
+        {
+          success: false,
+          error: {
+            message: safeMessage,
+            ...(result.error.position !== undefined && {
+              position: result.error.position,
+            }),
+            ...(result.error.line !== undefined && { line: result.error.line }),
+            ...(result.error.column !== undefined && {
+              column: result.error.column,
+            }),
+          },
         },
-      }, 400);
+        400,
+      );
     }
 
     return c.json(result);
@@ -323,7 +361,7 @@ export interface ServerOptions {
 }
 
 export function createServer(options: ServerOptions = {}) {
-  const { port = 3000, dataPath = ":memory:", backupPath, apiKeys } = options;
+  const { port = 3000, dataPath = ':memory:', backupPath, apiKeys } = options;
 
   const dbManager = new DatabaseManager(dataPath);
 
