@@ -8771,9 +8771,30 @@ END FROM (SELECT json_group_array(${valueExpr}) as sv))`,
               const withAliases = (this.ctx as any).withAliases as
                 | Map<string, Expression>
                 | undefined;
-              if (withAliases && withAliases.has(arg.variable!)) {
-                const originalExpr = withAliases.get(arg.variable!)!;
-                const translated = this.translateExpression(originalExpr);
+              // Guard against infinite recursion when the alias shadows the pattern variable
+              // (e.g. COLLECT(DISTINCT b) AS b). If selfRefDepths already tracks this alias
+              // we are already inside its resolution — fall through to ctx.variables instead.
+              const collectSelfRefDepths = (((this.ctx as any)
+                ._withAliasSelfRefDepths as
+                | Map<string, number>
+                | undefined) ??= new Map<string, number>());
+              const aliasName = arg.variable!;
+              if (
+                withAliases &&
+                withAliases.has(aliasName) &&
+                !collectSelfRefDepths.has(aliasName)
+              ) {
+                collectSelfRefDepths.set(aliasName, 0);
+                let translated: { sql: string; tables: string[]; params: unknown[] };
+                try {
+                  const originalExpr = withAliases.get(aliasName)!;
+                  translated = this.translateExpression(originalExpr);
+                } finally {
+                  collectSelfRefDepths.delete(aliasName);
+                  if (collectSelfRefDepths.size === 0) {
+                    (this.ctx as any)._withAliasSelfRefDepths = undefined;
+                  }
+                }
                 tables.push(...translated.tables);
                 params.push(...translated.params);
 
