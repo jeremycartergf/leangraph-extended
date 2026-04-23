@@ -8869,11 +8869,19 @@ END FROM (SELECT json_group_array(${valueExpr}) as sv))`,
                 throw new Error(`Unknown variable: ${arg.variable}`);
               }
               tables.push(varInfo.alias);
-              // Neo4j 3.5 format: collect just the properties objects
-              // Neo4j's collect() skips NULL values - use GROUP_CONCAT with null filtering
+              // Emit the same shape as RETURN n — inject _nf_id alongside properties
+              // so collected node objects are identical to directly-returned node objects.
+              const nodeJson = `json_set(COALESCE(${varInfo.alias}.properties, '{}'), '$._nf_id', ${varInfo.alias}.id)`;
               params.push(...collectOrderParams);
+              if (useDistinct) {
+                return {
+                  sql: `COALESCE(json('[' || GROUP_CONCAT(DISTINCT CASE WHEN ${varInfo.alias}.id IS NOT NULL THEN ${nodeJson} END${collectOrderClause}) || ']'), json('[]'))`,
+                  tables,
+                  params,
+                };
+              }
               return {
-                sql: `COALESCE(json('[' || GROUP_CONCAT(CASE WHEN ${varInfo.alias}.id IS NOT NULL THEN json(${varInfo.alias}.properties) END${collectOrderClause}) || ']'), json('[]'))`,
+                sql: `COALESCE(json('[' || GROUP_CONCAT(CASE WHEN ${varInfo.alias}.id IS NOT NULL THEN ${nodeJson} END${collectOrderClause}) || ']'), json('[]'))`,
                 tables,
                 params,
               };
