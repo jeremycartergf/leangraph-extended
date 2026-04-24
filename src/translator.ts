@@ -2683,6 +2683,66 @@ export class Translator {
           }
         }
 
+        // For deferred source joins (OPTIONAL MATCH with new source but bound target),
+        // add source label/property constraints to the edge ON clause using an EXISTS subquery.
+        // Without this, the edge LEFT JOIN matches ALL edges of the given type regardless of
+        // source node label, then the source node LEFT JOIN produces NULL for non-matching labels —
+        // generating one spurious null row per non-matching edge.
+        if (isOptional && (relPattern as any).deferSourceJoin) {
+          const sourcePatternForEdge = (this.ctx as any)[
+            `pattern_${relPattern.sourceAlias}`
+          ];
+          if (
+            sourcePatternForEdge?.label ||
+            sourcePatternForEdge?.labelOr ||
+            sourcePatternForEdge?.properties
+          ) {
+            // The column that holds the source node's ID in the edge row depends on direction:
+            // right-directed (source)→(target): source is at edge.source_id
+            // left-directed  (source)←(target): source is at edge.target_id
+            const edgeSourceColumn =
+              relPattern.edge.direction === 'left' ? 'target_id' : 'source_id';
+            const existsConds: string[] = [
+              `__source__.id = ${relPattern.edgeAlias}.${edgeSourceColumn}`,
+            ];
+            const existsParams: unknown[] = [];
+
+            if (sourcePatternForEdge.label || sourcePatternForEdge.labelOr) {
+              const labelMatch = this.generateLabelMatchCondition(
+                '__source__',
+                sourcePatternForEdge.label,
+                sourcePatternForEdge.labelOr,
+              );
+              existsConds.push(labelMatch.sql);
+              existsParams.push(...labelMatch.params);
+            }
+
+            if (sourcePatternForEdge.properties) {
+              for (const [key, value] of Object.entries(
+                sourcePatternForEdge.properties,
+              )) {
+                existsConds.push(
+                  `json_extract(__source__.properties, '$.${escSqlStr(key)}') = ?`,
+                );
+                if (this.isParameterRef(value as PropertyValue)) {
+                  existsParams.push(
+                    this.ctx.paramValues[(value as ParameterRef).name],
+                  );
+                } else {
+                  existsParams.push(value);
+                }
+              }
+            }
+
+            edgeOnConditions.push(
+              `EXISTS(SELECT 1 FROM nodes __source__ WHERE ${existsConds.join(
+                ' AND ',
+              )})`,
+            );
+            edgeOnParams.push(...existsParams);
+          }
+        }
+
         // For OPTIONAL MATCH when BOTH source and target were bound FROM A REQUIRED MATCH,
         // add target constraint to ON clause. This ensures the LEFT JOIN properly returns NULL
         // when no edge connects source to target, instead of filtering out the row entirely in WHERE.

@@ -639,6 +639,25 @@ function convertCondition(
       };
     }
 
+    case 'in': {
+      const propInfo = extractPropertyAccess(condition.left, middleVar);
+      if (!propInfo) return null;
+
+      let listValues: unknown[];
+      if (condition.list?.type === 'literal' && Array.isArray(condition.list.value)) {
+        listValues = condition.list.value;
+      } else if (condition.list?.type === 'parameter' && condition.list.name) {
+        const paramValue = params[condition.list.name];
+        if (!Array.isArray(paramValue)) return null;
+        listValues = paramValue as unknown[];
+      } else {
+        return null;
+      }
+
+      const { property } = propInfo;
+      return (node) => listValues.includes(node.properties[property]);
+    }
+
     default:
       // Unsupported condition type
       return null;
