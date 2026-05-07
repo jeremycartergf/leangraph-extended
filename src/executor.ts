@@ -3845,6 +3845,30 @@ export class Executor {
 
       // Execute match for each input row using SQL with bound variable constraints
       for (const inputRow of context.rows) {
+        // Short-circuit for OPTIONAL_MATCH on a row whose bound anchor is null:
+        // running SQL for such a row cannot constrain on the null id, so the
+        // LEFT JOIN fans out across every edge of the requested type (one
+        // spurious row per CONTROLS_ACCESS_FOR edge, etc.). Cypher null-
+        // propagates the anchor: introduced vars become null, one row out.
+        if (clause.type === 'OPTIONAL_MATCH' && boundVars.size > 0) {
+          let anyBoundIsNull = false;
+          for (const varName of boundVars) {
+            const value = inputRow.get(varName);
+            if (value === null || value === undefined) {
+              anyBoundIsNull = true;
+              break;
+            }
+          }
+          if (anyBoundIsNull) {
+            const outputRow = new Map(inputRow);
+            for (const varName of introducedVars) {
+              outputRow.set(varName, null);
+            }
+            newRows.push(outputRow);
+            continue;
+          }
+        }
+
         const matchResults = this.executeMatchWithSqlForRow(
           clause,
           inputRow,
