@@ -20,6 +20,12 @@ export interface EdgePattern {
   direction: 'left' | 'right' | 'none';
   minHops?: number;
   maxHops?: number;
+  // Quantified path pattern (QPP) group variables: node variables declared
+  // inside the repeated unit (e.g. `l`/`m` in `((l)-[r]->(m))*`). LeanGraph
+  // approximates QPPs via the var-length engine rather than tracking every
+  // intermediate node, so these are registered as in-scope but never bound
+  // to a value (references resolve to null) — see parseQuantifiedPathPattern.
+  qppGroupVars?: string[];
 }
 
 export interface RelationshipPattern {
@@ -2587,21 +2593,35 @@ export class Parser {
     const patterns: (NodePattern | RelationshipPattern)[] = [];
     const firstNode = this.parseNodePattern();
 
-    // Check for relationship chain
-    if (!this.check('DASH') && !this.check('ARROW_LEFT')) {
+    // Check for a relationship chain or a quantified path pattern (QPP) unit,
+    // e.g. (p) (()-[:R]->(:Label))* (cp) - the unit follows the anchor node
+    // directly, with no dash/arrow in between.
+    if (!this.check('DASH') && !this.check('ARROW_LEFT') && !this.check('LPAREN')) {
       // Just a single node
       return [firstNode];
     }
 
     // Parse first relationship
     let currentSource = firstNode;
-    while (this.check('DASH') || this.check('ARROW_LEFT')) {
+    while (
+      this.check('DASH') ||
+      this.check('ARROW_LEFT') ||
+      this.check('LPAREN')
+    ) {
+      if (this.check('LPAREN')) {
+        const qppRel = this.tryParseQuantifiedPathPattern(currentSource);
+        if (!qppRel) break; // Not actually a QPP - leave the '(' for the caller.
+        patterns.push(qppRel);
+        currentSource = { variable: qppRel.target.variable };
+        continue;
+      }
+
       const edge = this.parseEdgePattern();
       const targetNode = this.parseNodePattern();
 
-      // Check if there's another relationship pattern coming after this one
+      // Check if there's another relationship pattern (or QPP unit) coming after this one
       const hasMoreRelationships =
-        this.check('DASH') || this.check('ARROW_LEFT');
+        this.check('DASH') || this.check('ARROW_LEFT') || this.check('LPAREN');
 
       // If target is anonymous (no variable) AND there's more patterns coming,
       // assign a synthetic variable for chaining.
@@ -2621,7 +2641,9 @@ export class Parser {
       currentSource = { variable: targetNode.variable };
     }
 
-    return patterns;
+    // The loop can end without ever pushing a hop (e.g. a QPP-looking '('
+    // that turned out not to be one) - fall back to the lone starting node.
+    return patterns.length > 0 ? patterns : [firstNode];
   }
 
   private parseNodePattern(): NodePattern {
@@ -2768,6 +2790,18 @@ export class Parser {
       this.expect('DASH');
     }
 
+    // Quantified relationship shorthand: -[:TYPE]->+(b) / ->{1,10}(b).
+    // Sugar for (a) (()-[:TYPE]->())+ (b) - approximated the same way as a
+    // full QPP unit (see tryParseQuantifiedPathPattern): maps straight onto
+    // the existing var-length engine.
+    if (edge.minHops === undefined && edge.maxHops === undefined) {
+      const quantifier = this.tryParseQuantifier();
+      if (quantifier) {
+        edge.minHops = quantifier.min;
+        edge.maxHops = quantifier.max;
+      }
+    }
+
     return edge;
   }
 
@@ -2866,6 +2900,145 @@ export class Parser {
       edge.minHops = firstNum;
       edge.maxHops = firstNum;
     }
+  }
+
+  /**
+   * Quantified path patterns (QPP), e.g. `(a) (()-[:R]->(:Label))* (b)` or the
+   * relationship shorthand `(a)-[:R]->+(b)`.
+   *
+   * LeanGraph does not implement true QPP semantics (per-hop label/predicate
+   * enforcement during traversal). Instead it approximates the pattern with
+   * the existing var-length relationship engine: the quantifier maps directly
+   * onto minHops/maxHops, and the label/WHERE predicates on the repeated
+   * unit's inner nodes are parsed (so the query doesn't fail) but discarded —
+   * only the outer endpoint node's own label/property predicates are
+   * enforced, same as `(a)-[:R*0..]->(b:Label)` in the cheat sheet in
+   * QPP.md. Multi-hop units (more than one relationship per repetition)
+   * aren't supported and raise a clear error rather than guessing.
+   */
+  private tryParseQuantifier(): { min: number; max?: number } | null {
+    if (this.check('STAR')) {
+      this.advance();
+      return { min: 0, max: undefined };
+    }
+    if (this.check('PLUS')) {
+      this.advance();
+      return { min: 1, max: undefined };
+    }
+    if (this.check('LBRACE')) {
+      return this.parseQuantifierBraces();
+    }
+    return null;
+  }
+
+  private parseQuantifierBraces(): { min: number; max?: number } {
+    const MAX_HOPS = Parser.MAX_VARIABLE_LENGTH_HOPS;
+    this.expect('LBRACE');
+
+    let min: number | undefined;
+    let max: number | undefined;
+
+    if (this.check('NUMBER')) {
+      min = parseInt(this.advance().value, 10);
+    }
+
+    if (this.check('COMMA')) {
+      this.advance();
+      if (this.check('NUMBER')) {
+        max = parseInt(this.advance().value, 10);
+      }
+    } else {
+      // {n} - exactly n repetitions
+      max = min;
+    }
+
+    this.expect('RBRACE');
+
+    if (min === undefined) min = 0; // {,m} -> at most m, i.e. 0..m
+
+    if (min < 0 || (max !== undefined && max < 0)) {
+      throw new Error(
+        'Negative bound in quantified path pattern is not allowed',
+      );
+    }
+    if (min > MAX_HOPS || (max !== undefined && max > MAX_HOPS)) {
+      throw new Error(
+        `Quantified path pattern depth exceeds maximum of ${MAX_HOPS}`,
+      );
+    }
+
+    return { min, max };
+  }
+
+  /**
+   * Try to parse a full QPP unit `(<repeated unit>)<quantifier> (endpoint)`
+   * starting at the current position. Returns null (and rewinds) if the
+   * current position isn't a QPP after all, so callers can fall back to
+   * their normal handling.
+   */
+  private tryParseQuantifiedPathPattern(
+    anchor: NodePattern,
+  ): RelationshipPattern | null {
+    if (!this.check('LPAREN')) return null;
+    const savedPos = this.pos;
+    this.advance(); // consume '('
+
+    let innerPatterns: (NodePattern | RelationshipPattern)[];
+    try {
+      innerPatterns = this.parsePatternChain();
+    } catch {
+      this.pos = savedPos;
+      return null;
+    }
+
+    // Inline predicate on the unit, e.g. `((x)-[:R]->(y) WHERE y.status = 'active')+`.
+    // Parsed so the query doesn't fail, then discarded (see class doc above).
+    if (this.checkKeyword('WHERE')) {
+      this.advance();
+      this.parseWhereCondition();
+    }
+
+    if (!this.check('RPAREN')) {
+      this.pos = savedPos;
+      return null;
+    }
+    this.advance(); // consume ')'
+
+    const quantifier = this.tryParseQuantifier();
+    if (!quantifier) {
+      // No quantifier followed the parenthesized group, so this wasn't a QPP.
+      this.pos = savedPos;
+      return null;
+    }
+
+    // Past this point we know it's positively a QPP - surface real errors
+    // instead of silently backtracking.
+    const innerRel =
+      innerPatterns.length === 1 && 'edge' in innerPatterns[0]
+        ? (innerPatterns[0] as RelationshipPattern)
+        : null;
+    if (!innerRel) {
+      throw new Error(
+        'Unsupported quantified path pattern: only a single relationship per repeated unit is supported',
+      );
+    }
+
+    const endpointNode = this.parseNodePattern();
+
+    const groupVars: string[] = [];
+    if (innerRel.source.variable) groupVars.push(innerRel.source.variable);
+    if (innerRel.target.variable) groupVars.push(innerRel.target.variable);
+
+    return {
+      source: anchor,
+      edge: {
+        ...innerRel.edge,
+        minHops: quantifier.min,
+        maxHops: quantifier.max,
+        qppGroupVars: groupVars.length > 0 ? groupVars : undefined,
+      },
+      target: endpointNode,
+    };
   }
 
   private parseProperties(): Record<string, PropertyValue> {

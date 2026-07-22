@@ -1798,6 +1798,14 @@ export class Executor {
       if (pattern.edge?.variable) {
         variables.add(pattern.edge.variable);
       }
+      // Quantified path pattern group variables (see EdgePattern.qppGroupVars):
+      // registered as in-scope so references don't fail validation, even
+      // though LeanGraph doesn't track their per-repetition values.
+      if (pattern.edge?.qppGroupVars) {
+        for (const v of pattern.edge.qppGroupVars) {
+          variables.add(v);
+        }
+      }
     } else {
       // Node pattern
       const nodePattern = pattern as NodePattern;
