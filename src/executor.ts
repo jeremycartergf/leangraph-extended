@@ -256,6 +256,8 @@ export class Executor {
   private db: GraphDatabase;
   private propertyCache = new Map<string, Record<string, unknown>>();
   private edgePropertyCache = new Map<string, Record<string, unknown>>();
+  // Cache for node labels, keyed by _nf_id - populated by getNodeLabels
+  private nodeLabelCache = new Map<string, string[]>();
   // Cache for full edge info (type, source_id, target_id) - populated by batchGetEdgeInfo
   private edgeInfoCache = new Map<
     string,
@@ -324,6 +326,28 @@ export class Executor {
       }
     }
     return props || {};
+  }
+
+  /**
+   * Get a node's labels from cache or look them up by _nf_id and cache them.
+   */
+  private getNodeLabels(nodeId: string): string[] {
+    let labels = this.nodeLabelCache.get(nodeId);
+    if (!labels) {
+      const result = this.db.execute(
+        'SELECT label FROM nodes WHERE id = ?',
+        [nodeId],
+      );
+      if (result.rows.length > 0) {
+        const raw = result.rows[0].label;
+        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        labels = Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
+      } else {
+        labels = [];
+      }
+      this.nodeLabelCache.set(nodeId, labels);
+    }
+    return labels;
   }
 
   /**
@@ -5511,6 +5535,22 @@ export class Executor {
           default:
             return null;
         }
+      }
+
+      case 'labelPredicate': {
+        // (n:Label) / (n:Label1:Label2) - node values in phased execution only
+        // carry _nf_id (see extractNodeId), so labels must be looked up by id
+        // rather than read off the row value itself.
+        if (!expr.variable) return null;
+        const nodeVal = row.get(expr.variable);
+        if (nodeVal === null || nodeVal === undefined) return null;
+        const nodeId = this.extractNodeId(nodeVal);
+        if (!nodeId) return null;
+        const labelsToCheck =
+          expr.labels || (expr.label ? [expr.label] : []);
+        if (labelsToCheck.length === 0) return true;
+        const nodeLabels = this.getNodeLabels(nodeId);
+        return labelsToCheck.every((l) => nodeLabels.includes(l));
       }
 
       default:
