@@ -514,7 +514,53 @@ export function isHybridCompatiblePattern(query: Query): boolean {
     return false;
   }
 
+  // The hybrid engine's chain matcher only tracks node bindings per hop - it
+  // never records the edge that was traversed. A named relationship variable
+  // (or a property access on it) referenced anywhere outside the MATCH clause
+  // therefore can't be resolved there; it would silently vanish from the
+  // output row instead of erroring. Fall back to SQL translation, which does
+  // carry relationship variables through, whenever that's needed.
+  const namedRelVars = new Set(
+    relPatterns
+      .map((rel) => rel.edge.variable)
+      .filter((v): v is string => !!v),
+  );
+  if (namedRelVars.size > 0) {
+    const referencedVars = new Set<string>();
+    for (const clause of query.clauses) {
+      if (clause === matchClause) continue;
+      collectVariableReferences(clause, referencedVars);
+    }
+    for (const name of namedRelVars) {
+      if (referencedVars.has(name)) {
+        return false;
+      }
+    }
+  }
+
   return true;
+}
+
+/**
+ * Recursively collects every `{ type: 'variable' | 'property', variable }`
+ * reference anywhere in a parsed AST subtree.
+ */
+function collectVariableReferences(node: unknown, out: Set<string>): void {
+  if (node === null || typeof node !== 'object') return;
+  if (Array.isArray(node)) {
+    for (const item of node) collectVariableReferences(item, out);
+    return;
+  }
+  const obj = node as Record<string, unknown>;
+  if (
+    (obj.type === 'variable' || obj.type === 'property') &&
+    typeof obj.variable === 'string'
+  ) {
+    out.add(obj.variable);
+  }
+  for (const key of Object.keys(obj)) {
+    collectVariableReferences(obj[key], out);
+  }
 }
 
 /**

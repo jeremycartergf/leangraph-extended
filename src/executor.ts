@@ -31,7 +31,7 @@ import {
   WhereCondition,
   ReturnItem,
 } from './parser';
-import { Translator } from './translator';
+import { Translator, assertParametersSupplied } from './translator';
 import { GraphDatabase } from './db';
 import { HybridExecutor } from './engine/hybrid-executor';
 import {
@@ -515,7 +515,12 @@ export class Executor {
         };
       }
 
-      // 2. Classify query with single-pass and dispatch to appropriate handler
+      // 2. Reject queries referencing a $parameter absent from `params` up front -
+      // some patterns (e.g. variable-length hops) dispatch to the hybrid
+      // in-memory executor below, bypassing the SQL Translator's own check.
+      assertParametersSupplied(parseResult.query, params);
+
+      // 3. Classify query with single-pass and dispatch to appropriate handler
       const { pattern, flags } = this.classifyQuery(parseResult.query);
       debugPattern = pattern;
       debugClauseSummary = parseResult.query.clauses
@@ -534,7 +539,7 @@ export class Executor {
         );
       }
 
-      // 3. Run semantic validations only when relevant clauses are present
+      // 4. Run semantic validations only when relevant clauses are present
       //    (avoids extra iteration overhead for simple queries)
       if (flags.hasMerge) {
         this.validateMergeVariables(parseResult.query);
@@ -13095,73 +13100,29 @@ export class Executor {
       return row;
     });
 
-    const withClauses = query.clauses.filter(
-      (c): c is WithClause => c.type === 'WITH',
+    // Execute all post-MATCH clauses (WITH, RETURN, ...) through the same
+    // general in-memory clause executor used by PHASED execution, rather than
+    // hand-rolling a RETURN-only formatter here. The hand-rolled version only
+    // understood `property` and `variable` expressions, so a RETURN item like
+    // a literal, function call, or arithmetic expression was silently dropped
+    // from the output instead of erroring; it also never applied DISTINCT,
+    // SKIP, or LIMIT. `executeReturnClause` (reached via `executeClause`)
+    // already handles all of that correctly via `evaluateExpressionInRow`,
+    // and produces identical column names for the plain property/variable
+    // items this used to handle (both key off `item.alias ||
+    // "<var>"/"<var>.<prop>"`).
+    const postMatchClauses = query.clauses.filter(
+      (c) => c.type !== 'MATCH' && c.type !== 'OPTIONAL_MATCH',
     );
 
-    if (withClauses.length > 0) {
-      // There are WITH clauses that need in-memory execution (the hybrid executor
-      // only handles the MATCH phase).  Execute all post-MATCH clauses in sequence.
-      const postMatchClauses = query.clauses.filter(
-        (c) => c.type !== 'MATCH' && c.type !== 'OPTIONAL_MATCH',
-      );
+    let context = createEmptyContext();
+    context.rows = rows;
 
-      let context = createEmptyContext();
-      context.rows = rows;
-
-      for (const clause of postMatchClauses) {
-        context = this.executeClause(clause, context, params);
-      }
-
-      return this.contextToResults(context);
+    for (const clause of postMatchClauses) {
+      context = this.executeClause(clause, context, params);
     }
 
-    // Simple case: no WITH clauses — format results directly from the RETURN clause.
-    const formattedResults: Record<string, unknown>[] = [];
-
-    for (const result of rawResults) {
-      const row: Record<string, unknown> = {};
-
-      for (const item of returnClause.items) {
-        const alias = item.alias || this.getReturnItemKey(item);
-
-        if (item.expression.type === 'property') {
-          // Property access: a.name, b.age, etc.
-          const varName = item.expression.variable;
-          const propName = item.expression.property;
-
-          const node = varName ? result.get(varName) : undefined;
-          if (node && propName) {
-            row[alias] = node.properties[propName];
-          }
-        } else if (item.expression.type === 'variable') {
-          // Full node: a, b, c
-          const varName = item.expression.variable;
-
-          const node = varName ? result.get(varName) : undefined;
-          if (node) {
-            // Embed _nf_id (SQLite node UUID) so hydrateGraphValues can resolve _labels
-            row[alias] = { ...node.properties, _nf_id: node.id };
-          }
-        }
-      }
-
-      formattedResults.push(row);
-    }
-
-    return formattedResults;
-  }
-
-  /**
-   * Get a key for a return item (used when no alias is provided).
-   */
-  private getReturnItemKey(item: ReturnItem): string {
-    if (item.expression.type === 'property') {
-      return `${item.expression.variable}.${item.expression.property}`;
-    } else if (item.expression.type === 'variable') {
-      return item.expression.variable || '';
-    }
-    return '';
+    return this.contextToResults(context);
   }
 
   /**

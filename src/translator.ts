@@ -165,6 +165,53 @@ export interface TranslationContext {
 }
 
 // ============================================================================
+// Parameter validation
+// ============================================================================
+
+/**
+ * Recursively collects every `$name` parameter reference anywhere in a
+ * parsed AST subtree (expressions, property maps, SKIP/LIMIT, etc.) - the
+ * AST has no single canonical list of parameter usages, so this walks the
+ * whole node/array structure looking for `{ type: 'parameter', name }`.
+ */
+export function findReferencedParameterNames(
+  node: unknown,
+  out: Set<string> = new Set(),
+): Set<string> {
+  if (node === null || typeof node !== 'object') return out;
+  if (Array.isArray(node)) {
+    for (const item of node) findReferencedParameterNames(item, out);
+    return out;
+  }
+  const obj = node as Record<string, unknown>;
+  if (obj.type === 'parameter' && typeof obj.name === 'string') {
+    out.add(obj.name);
+  }
+  for (const key of Object.keys(obj)) {
+    findReferencedParameterNames(obj[key], out);
+  }
+  return out;
+}
+
+/**
+ * Throws when the query references a `$name` parameter that isn't an own
+ * property of the supplied params object. Neo4j rejects such queries rather
+ * than treating the missing parameter as unbound/null, which previously let
+ * predicates like `WHERE p.id IN $typoedParamName` match permissively.
+ */
+export function assertParametersSupplied(
+  query: unknown,
+  paramValues: Record<string, unknown>,
+): void {
+  const referenced = findReferencedParameterNames(query);
+  for (const name of referenced) {
+    if (!Object.prototype.hasOwnProperty.call(paramValues, name)) {
+      throw new Error(`ParameterMissing: Expected parameter(s): ${name}`);
+    }
+  }
+}
+
+// ============================================================================
 // Translator
 // ============================================================================
 
@@ -187,6 +234,11 @@ export class Translator {
   }
 
   translate(query: Query): TranslationResult {
+    // Neo4j rejects a query referencing a $parameter that wasn't supplied
+    // rather than silently treating it as unbound (which previously made
+    // predicates like `WHERE p.id IN $typoedParamName` match permissively).
+    assertParametersSupplied(query, this.ctx.paramValues);
+
     const statements: SqlStatement[] = [];
     let returnColumns: string[] | undefined;
 
@@ -6485,6 +6537,41 @@ export class Translator {
               )})`,
             );
           }
+
+          // A WHERE attached to this OPTIONAL MATCH (e.g. after a variable-length
+          // hop earlier in the pattern chain) was not otherwise applied anywhere -
+          // apply it the same way the non-variable-length path does: if it
+          // references the target node, gate the edge join on an EXISTS check
+          // against the target so non-matching targets don't join at all
+          // (preventing spurious extra NULL rows); otherwise add it directly.
+          if (isOptional && (pattern as any).optionalWhere) {
+            const whereCondition = (pattern as any)
+              .optionalWhere as WhereCondition;
+            const varsInCondition =
+              this.findVariablesInCondition(whereCondition);
+            const targetVar = Array.from(this.ctx.variables.entries()).find(
+              ([, info]) => info.alias === pattern.targetAlias,
+            )?.[0];
+            const referencesTarget =
+              !!targetVar && varsInCondition.includes(targetVar);
+
+            const { sql: optionalWhereSql, params: optionalWhereParams } =
+              this.translateWhere(whereCondition);
+            if (referencesTarget) {
+              const existsSql = `EXISTS(SELECT 1 FROM nodes __target__ WHERE __target__.id = ${
+                pattern.edgeAlias
+              }.${targetJoinColumn} AND ${optionalWhereSql.replace(
+                new RegExp(pattern.targetAlias + '\\.', 'g'),
+                '__target__.',
+              )})`;
+              edgeOnConditions.push(existsSql);
+              joinParams.push(...optionalWhereParams);
+            } else {
+              edgeOnConditions.push(optionalWhereSql);
+              joinParams.push(...optionalWhereParams);
+            }
+          }
+
           joinParts.push(
             `${joinType} edges ${pattern.edgeAlias} ON ${edgeOnConditions.join(
               ' AND ',
