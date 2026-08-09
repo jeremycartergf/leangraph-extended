@@ -194,6 +194,24 @@ export function findReferencedParameterNames(
 }
 
 /**
+ * Prefixes the executor itself uses to synthesize parameter names when a
+ * later phase references a bound variable (or a property of one) carried
+ * from an earlier WITH/OPTIONAL MATCH phase - e.g. `WITH m OPTIONAL MATCH
+ * (tm) WHERE tm.name = m.model` rewrites `m.model` into a `$_ctxprop_m_model`
+ * reference (see `transformExpressionForContext` in executor.ts). These are
+ * never something a caller writes in Cypher text, so a caller's params
+ * object never contains them by construction.
+ *
+ * Critically, a `_ctxprop_*` entry is only merged in when the carried row's
+ * value actually has that property - if `m.model` is genuinely absent on a
+ * given row, no entry is merged for it, and the parameter must fall through
+ * to SQLite's undefined-to-NULL binding so `m.model` correctly reads as null
+ * (matching Cypher's "missing property reads as null" semantics), rather
+ * than being treated as a missing caller parameter.
+ */
+const INTERNAL_PARAMETER_PREFIXES = ['_ctx_', '_ctxprop_'];
+
+/**
  * Throws when the query references a `$name` parameter that isn't an own
  * property of the supplied params object. Neo4j rejects such queries rather
  * than treating the missing parameter as unbound/null, which previously let
@@ -205,6 +223,9 @@ export function assertParametersSupplied(
 ): void {
   const referenced = findReferencedParameterNames(query);
   for (const name of referenced) {
+    if (INTERNAL_PARAMETER_PREFIXES.some((prefix) => name.startsWith(prefix))) {
+      continue;
+    }
     if (!Object.prototype.hasOwnProperty.call(paramValues, name)) {
       throw new Error(`ParameterMissing: Expected parameter(s): ${name}`);
     }
