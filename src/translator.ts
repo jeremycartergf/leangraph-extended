@@ -19032,6 +19032,24 @@ FROM __bin_l, __bin_r)`,
       // Generate: EXISTS (SELECT 1 FROM edges e WHERE e.source_id = n.id${edgeTypeFilterRecursive2} AND ...)
       const rel = pattern as RelationshipPattern;
 
+      // exists((n)-[:T*1..]->(m)) means exactly what the bare pattern predicate
+      // (n)-[:T*1..]->(m) means, but the single-hop builder below has no notion
+      // of a hop range and would silently treat *1.. as one hop. Hand any
+      // variable-length pattern to the predicate translator, which walks it
+      // properly. Targets naming an unbound variable stay on the old path —
+      // the predicate translator rejects those, and rejecting what previously
+      // returned rows would be a regression.
+      const hasHopRange =
+        rel.edge.minHops !== undefined || rel.edge.maxHops !== undefined;
+      const targetResolvable =
+        !rel.target.variable || this.ctx.variables.has(rel.target.variable);
+      if (hasHopRange && targetResolvable) {
+        return this.translatePatternCondition({
+          type: 'patternMatch',
+          patterns: [pattern],
+        } as WhereCondition);
+      }
+
       // Get the source variable's alias from context
       const sourceVar = rel.source.variable;
       const sourceInfo = sourceVar ? this.ctx.variables.get(sourceVar) : null;
@@ -19060,20 +19078,35 @@ FROM __bin_l, __bin_r)`,
         params.push(rel.edge.type);
       }
 
-      // Check if target has a label - need to join to nodes table
+      // Check if target has a label or inline properties - need to join to nodes table
       let fromClause = `edges ${edgeAlias}`;
-      if (rel.target.label) {
+      const targetProps = Object.entries(rel.target.properties ?? {});
+      if (rel.target.label || targetProps.length > 0) {
         if (rel.edge.direction === 'left') {
           fromClause += ` JOIN nodes ${targetAlias} ON ${edgeAlias}.source_id = ${targetAlias}.id`;
         } else {
           fromClause += ` JOIN nodes ${targetAlias} ON ${edgeAlias}.target_id = ${targetAlias}.id`;
         }
-        const labelMatch = this.generateLabelMatchCondition(
-          targetAlias,
-          rel.target.label,
-        );
-        conditions.push(labelMatch.sql);
-        params.push(...labelMatch.params);
+        if (rel.target.label) {
+          const labelMatch = this.generateLabelMatchCondition(
+            targetAlias,
+            rel.target.label,
+          );
+          conditions.push(labelMatch.sql);
+          params.push(...labelMatch.params);
+        }
+        for (const [key, value] of targetProps) {
+          conditions.push(
+            `json_extract(${targetAlias}.properties, '$.${escSqlStr(
+              key,
+            )}') = ?`,
+          );
+          params.push(
+            this.isParameterRef(value as PropertyValue)
+              ? this.ctx.paramValues[(value as ParameterRef).name]
+              : value,
+          );
+        }
       }
 
       sql = `EXISTS (SELECT 1 FROM ${fromClause} WHERE ${conditions.join(
@@ -19097,6 +19130,60 @@ FROM __bin_l, __bin_r)`,
     }
 
     return { sql, params };
+  }
+
+  /**
+   * Build the filter for an anonymous (unbound) target node inside a pattern
+   * predicate — its labels and its inline property map.
+   *
+   * An unbound target has no alias of its own in the outer query, so the
+   * constraint has to be re-checked against the nodes table via the id the
+   * traversal lands on. Returns null when the pattern constrains nothing.
+   *
+   * `idExpr` is the SQL expression yielding the id of the node to test.
+   */
+  private generateAnonymousTargetFilter(
+    target: NodePattern,
+    idExpr: string,
+  ): { sql: string; params: unknown[] } | null {
+    const hasLabel =
+      !!target.label || !!(target.labelOr && target.labelOr.length > 0);
+    const propEntries = Object.entries(target.properties ?? {});
+    if (!hasLabel && propEntries.length === 0) {
+      return null;
+    }
+
+    const alias = `target_n${this.ctx.aliasCounter++}`;
+    const conditions: string[] = [`${alias}.id = ${idExpr}`];
+    const params: unknown[] = [];
+
+    if (hasLabel) {
+      const labelMatch = this.generateLabelMatchCondition(
+        alias,
+        target.label,
+        target.labelOr,
+      );
+      conditions.push(labelMatch.sql);
+      params.push(...labelMatch.params);
+    }
+
+    for (const [key, value] of propEntries) {
+      conditions.push(
+        `json_extract(${alias}.properties, '$.${escSqlStr(key)}') = ?`,
+      );
+      params.push(
+        this.isParameterRef(value as PropertyValue)
+          ? this.ctx.paramValues[(value as ParameterRef).name]
+          : value,
+      );
+    }
+
+    return {
+      sql: `EXISTS (SELECT 1 FROM nodes ${alias} WHERE ${conditions.join(
+        ' AND ',
+      )})`,
+      params,
+    };
   }
 
   private translatePatternCondition(condition: WhereCondition): {
@@ -19151,6 +19238,13 @@ FROM __bin_l, __bin_r)`,
           const minHops = rel.edge.minHops ?? 1;
           const maxHops = rel.edge.maxHops ?? 10;
 
+          // An unbounded upper hop count means unbounded — capping it silently
+          // under-matches on trees deeper than the cap. Termination comes from
+          // relationship uniqueness (an edge may not repeat within one path)
+          // rather than from an arbitrary depth limit.
+          const hopLimit =
+            rel.edge.maxHops !== undefined ? `vlp.hops < ${maxHops} AND ` : '';
+
           // Build edge type filter - use literals in CTE to avoid parameter issues
           let edgeTypeFilterBase = '';
           let edgeTypeFilterRecursive = '';
@@ -19171,6 +19265,26 @@ FROM __bin_l, __bin_r)`,
           // Determine direction for variable-length path traversal
           const direction = rel.edge.direction || 'right';
 
+          // An anonymous endpoint is still constrained by its labels and inline
+          // properties, so the CTE has to test the node it actually lands on.
+          // Without this the predicate degenerates into "does any path of the
+          // right type and length leave the source", which is true far too often.
+          const endpointColumn =
+            direction === 'none'
+              ? 'current_id'
+              : direction === 'left'
+                ? 'source_id'
+                : 'target_id';
+          const endpointFilter = targetIsAnonymous
+            ? this.generateAnonymousTargetFilter(rel.target, endpointColumn)
+            : null;
+          const endpointClause = endpointFilter
+            ? ` AND ${endpointFilter.sql}`
+            : '';
+          if (endpointFilter) {
+            params.push(...endpointFilter.params);
+          }
+
           if (direction === 'none') {
             // Undirected: traverse edges in both directions
             // Track visited edges to prevent traversing the same edge twice (Cypher relationship uniqueness)
@@ -19184,11 +19298,11 @@ FROM __bin_l, __bin_r)`,
                     SELECT CASE WHEN e.source_id = vlp.current_id THEN e.target_id ELSE e.source_id END, vlp.hops + 1, vlp.visited_edges || e.id || ','
                     FROM var_length_path vlp
                     JOIN edges e ON (e.source_id = vlp.current_id OR e.target_id = vlp.current_id)${edgeTypeFilterRecursive}
-                    WHERE vlp.hops < ${maxHops} AND vlp.visited_edges NOT LIKE '%,' || e.id || ',%'
+                    WHERE ${hopLimit}vlp.visited_edges NOT LIKE '%,' || e.id || ',%'
                   )
                   SELECT 1
                   FROM var_length_path
-                  WHERE hops >= ${minHops}
+                  WHERE hops >= ${minHops}${endpointClause}
                 )`;
               conditions.push(reachSql);
             } else {
@@ -19205,7 +19319,7 @@ FROM __bin_l, __bin_r)`,
                     SELECT CASE WHEN e.source_id = vlp.current_id THEN e.target_id ELSE e.source_id END, vlp.hops + 1, vlp.visited_edges || e.id || ','
                     FROM var_length_path vlp
                     JOIN edges e ON (e.source_id = vlp.current_id OR e.target_id = vlp.current_id)${edgeTypeFilterRecursive}
-                    WHERE vlp.hops < ${maxHops} AND vlp.visited_edges NOT LIKE '%,' || e.id || ',%'
+                    WHERE ${hopLimit}vlp.visited_edges NOT LIKE '%,' || e.id || ',%'
                   )
                   SELECT 1
                   FROM var_length_path
@@ -19219,34 +19333,34 @@ FROM __bin_l, __bin_r)`,
             // Left direction: traverse from target to source (incoming edges)
             if (targetIsAnonymous) {
               const reachSql = `EXISTS (
-                  WITH RECURSIVE var_length_path(source_id, target_id, hops) AS (
-                    SELECT source_id, target_id, 1
+                  WITH RECURSIVE var_length_path(source_id, target_id, hops, visited_edges) AS (
+                    SELECT source_id, target_id, 1, ',' || id || ','
                     FROM edges
                     WHERE target_id = ${sourceInfo.alias}.id${edgeTypeFilterBase}
                     UNION ALL
-                    SELECT e.source_id, vlp.target_id, vlp.hops + 1
+                    SELECT e.source_id, vlp.target_id, vlp.hops + 1, vlp.visited_edges || e.id || ','
                     FROM var_length_path vlp
                     JOIN edges e ON e.target_id = vlp.source_id${edgeTypeFilterRecursive}
-                    WHERE vlp.hops < ${maxHops}
+                    WHERE ${hopLimit}vlp.visited_edges NOT LIKE '%,' || e.id || ',%'
                   )
                   SELECT 1
                   FROM var_length_path
-                  WHERE hops >= ${minHops}
+                  WHERE hops >= ${minHops}${endpointClause}
                 )`;
               conditions.push(reachSql);
             } else {
               const reachSql = `EXISTS (
-                  WITH RECURSIVE var_length_path(source_id, target_id, hops) AS (
-                    SELECT source_id, target_id, 1
+                  WITH RECURSIVE var_length_path(source_id, target_id, hops, visited_edges) AS (
+                    SELECT source_id, target_id, 1, ',' || id || ','
                     FROM edges
                     WHERE target_id = ${
                       sourceInfo.alias
                     }.id${edgeTypeFilterBase}
                     UNION ALL
-                    SELECT e.source_id, vlp.target_id, vlp.hops + 1
+                    SELECT e.source_id, vlp.target_id, vlp.hops + 1, vlp.visited_edges || e.id || ','
                     FROM var_length_path vlp
                     JOIN edges e ON e.target_id = vlp.source_id${edgeTypeFilterRecursive}
-                    WHERE vlp.hops < ${maxHops}
+                    WHERE ${hopLimit}vlp.visited_edges NOT LIKE '%,' || e.id || ',%'
                   )
                   SELECT 1
                   FROM var_length_path
@@ -19260,34 +19374,34 @@ FROM __bin_l, __bin_r)`,
             // Right direction (default): traverse from source to target (outgoing edges)
             if (targetIsAnonymous) {
               const reachSql = `EXISTS (
-                  WITH RECURSIVE var_length_path(source_id, target_id, hops) AS (
-                    SELECT source_id, target_id, 1
+                  WITH RECURSIVE var_length_path(source_id, target_id, hops, visited_edges) AS (
+                    SELECT source_id, target_id, 1, ',' || id || ','
                     FROM edges
                     WHERE source_id = ${sourceInfo.alias}.id${edgeTypeFilterBase}
                     UNION ALL
-                    SELECT vlp.source_id, e.target_id, vlp.hops + 1
+                    SELECT vlp.source_id, e.target_id, vlp.hops + 1, vlp.visited_edges || e.id || ','
                     FROM var_length_path vlp
                     JOIN edges e ON vlp.target_id = e.source_id${edgeTypeFilterRecursive}
-                    WHERE vlp.hops < ${maxHops}
+                    WHERE ${hopLimit}vlp.visited_edges NOT LIKE '%,' || e.id || ',%'
                   )
                   SELECT 1
                   FROM var_length_path
-                  WHERE hops >= ${minHops}
+                  WHERE hops >= ${minHops}${endpointClause}
                 )`;
               conditions.push(reachSql);
             } else {
               const reachSql = `EXISTS (
-                  WITH RECURSIVE var_length_path(source_id, target_id, hops) AS (
-                    SELECT source_id, target_id, 1
+                  WITH RECURSIVE var_length_path(source_id, target_id, hops, visited_edges) AS (
+                    SELECT source_id, target_id, 1, ',' || id || ','
                     FROM edges
                     WHERE source_id = ${
                       sourceInfo.alias
                     }.id${edgeTypeFilterBase}
                     UNION ALL
-                    SELECT vlp.source_id, e.target_id, vlp.hops + 1
+                    SELECT vlp.source_id, e.target_id, vlp.hops + 1, vlp.visited_edges || e.id || ','
                     FROM var_length_path vlp
                     JOIN edges e ON vlp.target_id = e.source_id${edgeTypeFilterRecursive}
-                    WHERE vlp.hops < ${maxHops}
+                    WHERE ${hopLimit}vlp.visited_edges NOT LIKE '%,' || e.id || ',%'
                   )
                   SELECT 1
                   FROM var_length_path
@@ -19356,37 +19470,27 @@ FROM __bin_l, __bin_r)`,
             params.push(...rel.edge.types);
           }
 
-          // For anonymous targets with label constraints, add a join to nodes table
-          if (targetIsAnonymous && rel.target.label) {
-            const labels = Array.isArray(rel.target.label)
-              ? rel.target.label
-              : [rel.target.label];
-            const targetNodeAlias = `target_n${this.ctx.aliasCounter++}`;
-            // Remove trailing ) and add JOIN and label check
-            const existsClause = conditions[conditions.length - 1];
-            const withoutClosingParen = existsClause.slice(0, -1);
+          // An anonymous target still constrains the match by its labels and
+          // inline properties — re-check them against the far end of the edge.
+          // NB: the EXISTS clause is still open at this point (the else branch
+          // below is what closes it), so nothing may be trimmed off the end.
+          let farEndColumn: string;
+          if (rel.edge.direction === 'left') {
+            farEndColumn = `${edgeAlias}.source_id`;
+          } else if (rel.edge.direction === 'none') {
+            // Undirected: the far end is whichever end isn't the source node
+            farEndColumn = `CASE WHEN ${edgeAlias}.source_id = ${sourceInfo.alias}.id THEN ${edgeAlias}.target_id ELSE ${edgeAlias}.source_id END`;
+          } else {
+            farEndColumn = `${edgeAlias}.target_id`;
+          }
 
-            // Build label check condition
-            const labelConditions = labels.map(
-              (l) =>
-                `EXISTS(SELECT 1 FROM json_each(${targetNodeAlias}.label) WHERE value = '${l.replace(
-                  /'/g,
-                  "''",
-                )}')`,
-            );
+          const targetFilter = targetIsAnonymous
+            ? this.generateAnonymousTargetFilter(rel.target, farEndColumn)
+            : null;
 
-            // Determine which edge column to join on based on direction
-            let joinColumn: string;
-            if (rel.edge.direction === 'left') {
-              joinColumn = `${edgeAlias}.source_id`;
-            } else {
-              joinColumn = `${edgeAlias}.target_id`;
-            }
-
-            conditions[conditions.length - 1] =
-              `${withoutClosingParen} AND EXISTS (SELECT 1 FROM nodes ${targetNodeAlias} WHERE ${targetNodeAlias}.id = ${joinColumn} AND (${labelConditions.join(
-                ' OR ',
-              )})))`;
+          if (targetFilter) {
+            conditions[conditions.length - 1] += ` AND ${targetFilter.sql})`;
+            params.push(...targetFilter.params);
           } else {
             conditions[conditions.length - 1] += ')';
           }
