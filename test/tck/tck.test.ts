@@ -18,7 +18,7 @@ import { valuesMatch, extractColumns, rowsMatch } from "./tck-utils";
 const TCK_PATH = path.join(__dirname, "openCypher/tck/features");
 
 // Environment variable to run all tests including known failing ones
-// Usage: TCK_TEST_ALL=1 pnpm test -- --run
+// Usage: TCK_TEST_ALL=1 npm test
 const TCK_TEST_ALL = process.env.TCK_TEST_ALL === "1";
 
 // Parse all TCK features

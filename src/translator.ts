@@ -5306,9 +5306,13 @@ export class Translator {
         edgeConditions.push(`${edgeAlias}.source_id = ${endIdExpr}`);
       }
 
-      if (continuationPattern.edge.type) {
-        edgeConditions.push(`${edgeAlias}.type = ?`);
-        params.push(continuationPattern.edge.type);
+      const continuationTypeFilter = this.generateEdgeTypeFilter(
+        continuationPattern.edge,
+        edgeAlias,
+      );
+      if (continuationTypeFilter) {
+        edgeConditions.push(continuationTypeFilter.sql);
+        params.push(...continuationTypeFilter.params);
       }
 
       const targetPattern = (this.ctx as any)[
@@ -5564,13 +5568,17 @@ export class Translator {
 
         // For optional patterns, add edge type filter to ON clause
         // For non-optional, add to WHERE (deferred)
-        if (pattern.edge.type) {
+        const edgeTypeFilter = this.generateEdgeTypeFilter(
+          pattern.edge,
+          pattern.edgeAlias,
+        );
+        if (edgeTypeFilter) {
           if (isOptional) {
-            edgeOnConditions.push(`${pattern.edgeAlias}.type = ?`);
-            joinParams.push(pattern.edge.type);
+            edgeOnConditions.push(edgeTypeFilter.sql);
+            joinParams.push(...edgeTypeFilter.params);
           } else {
-            whereParts.push(`${pattern.edgeAlias}.type = ?`);
-            deferredWhereParams.push(pattern.edge.type);
+            whereParts.push(edgeTypeFilter.sql);
+            deferredWhereParams.push(...edgeTypeFilter.params);
           }
         }
 
@@ -6373,9 +6381,13 @@ export class Translator {
             const edgeOnConditions = [
               `${pattern.edgeAlias}.${targetJoinColumn} = ${pattern.targetAlias}.id`,
             ];
-            if (pattern.edge.type) {
-              edgeOnConditions.push(`${pattern.edgeAlias}.type = ?`);
-              joinParams.push(pattern.edge.type);
+            const edgeTypeFilter = this.generateEdgeTypeFilter(
+              pattern.edge,
+              pattern.edgeAlias,
+            );
+            if (edgeTypeFilter) {
+              edgeOnConditions.push(edgeTypeFilter.sql);
+              joinParams.push(...edgeTypeFilter.params);
             }
             joinParts.push(
               `LEFT JOIN edges ${pattern.edgeAlias} ON ${edgeOnConditions.join(
@@ -6506,9 +6518,15 @@ export class Translator {
           const edgeOnConditions = [
             `${pattern.edgeAlias}.${edgeJoinColumn} = ${sourceAliasForPattern}.id`,
           ];
-          if (isOptional && pattern.edge.type) {
-            edgeOnConditions.push(`${pattern.edgeAlias}.type = ?`);
-            joinParams.push(pattern.edge.type);
+          if (isOptional) {
+            const edgeTypeFilter = this.generateEdgeTypeFilter(
+              pattern.edge,
+              pattern.edgeAlias,
+            );
+            if (edgeTypeFilter) {
+              edgeOnConditions.push(edgeTypeFilter.sql);
+              joinParams.push(...edgeTypeFilter.params);
+            }
           }
           if (
             isOptional &&
@@ -6601,9 +6619,15 @@ export class Translator {
           addedEdgeAliases.add(pattern.edgeAlias);
 
           // Edge type filter - deferred until after all CTE params
-          if (!isOptional && pattern.edge.type) {
-            whereParts.push(`${pattern.edgeAlias}.type = ?`);
-            deferredWhereParams.push(pattern.edge.type);
+          if (!isOptional) {
+            const edgeTypeFilter = this.generateEdgeTypeFilter(
+              pattern.edge,
+              pattern.edgeAlias,
+            );
+            if (edgeTypeFilter) {
+              whereParts.push(edgeTypeFilter.sql);
+              deferredWhereParams.push(...edgeTypeFilter.params);
+            }
           }
         } else {
           // Edge already joined - this is a bound relationship from an earlier MATCH
@@ -19130,6 +19154,32 @@ FROM __bin_l, __bin_r)`,
     }
 
     return { sql, params };
+  }
+
+  /**
+   * Edge-type filter for a relationship pattern: a single type `[:T]` or an
+   * alternation `[:A|B]`. Returns null when the pattern names no type.
+   *
+   * Several call sites used to test only `edge.type` and silently emit no
+   * filter at all for an alternation, which let a pattern match relationship
+   * types outside the list. Route every edge-type filter through here so the
+   * two forms cannot drift apart again.
+   */
+  private generateEdgeTypeFilter(
+    edge: { type?: string; types?: string[] },
+    alias: string,
+  ): { sql: string; params: unknown[] } | null {
+    if (edge.type) {
+      return { sql: `${alias}.type = ?`, params: [edge.type] };
+    }
+    if (edge.types && edge.types.length > 0) {
+      const placeholders = edge.types.map(() => '?').join(', ');
+      return {
+        sql: `${alias}.type IN (${placeholders})`,
+        params: [...edge.types],
+      };
+    }
+    return null;
   }
 
   /**

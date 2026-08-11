@@ -5,13 +5,13 @@
  * Quickly run a single TCK test by name or pattern.
  * 
  * Usage:
- *   npx tsx packages/server/test/tck/run-test.ts "Return6|11"
- *   npx tsx packages/server/test/tck/run-test.ts "Return6|11" --verbose
- *   npx tsx packages/server/test/tck/run-test.ts "Match3" --list
- * 
- * Or via pnpm script:
- *   pnpm tck "Return6|11"
- *   pnpm tck "Return6|11" -v
+ *   npx tsx test/tck/run-test.ts "Return6|11"
+ *   npx tsx test/tck/run-test.ts "Return6|11" --verbose
+ *   npx tsx test/tck/run-test.ts "Match3" --list
+ *
+ * Or via npm script:
+ *   npm run tck "Return6|11"
+ *   npm run tck "Return6|11" -- -v
  */
 
 import * as path from "path";
@@ -38,14 +38,14 @@ if (!pattern) {
 TCK Test Runner - Run individual openCypher TCK tests
 
 Usage:
-  pnpm tck <pattern> [options]
+  npm run tck <pattern> [-- options]
 
 Examples:
-  pnpm tck "Return6|11"           # Run specific test
-  pnpm tck "Return6" --list       # List all Return6 tests  
-  pnpm tck "Match3|15" -v         # Run with verbose output
-  pnpm tck "Return6|11" --sql     # Show generated SQL
-  pnpm tck "Return6|11" --force   # Run even if in failing list
+  npm run tck "Return6|11"              # Run specific test
+  npm run tck "Return6" -- --list       # List all Return6 tests
+  npm run tck "Match3|15" -- -v         # Run with verbose output
+  npm run tck "Return6|11" -- --sql     # Show generated SQL
+  npm run tck "Return6|11" -- --force   # Run even if in failing list
 
 Options:
   -v, --verbose    Show detailed test information

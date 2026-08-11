@@ -104,6 +104,19 @@ export function analyzeForHybrid(
 
     // Extract edge info
     const edge = rel.edge;
+
+    // Relationship-type alternation ([:A|B]) has no representation in ChainHop:
+    // its single `edgeType` uses null to mean "any type", so an alternation
+    // would silently widen the match to every type instead of the listed two.
+    // Fall back to SQL translation rather than dropping the constraint.
+    if (edge.types && edge.types.length > 0) {
+      return {
+        suitable: false,
+        reason:
+          'Relationship-type alternation is not supported by hybrid execution',
+      };
+    }
+
     const isVarLength =
       edge.minHops !== undefined || edge.maxHops !== undefined;
 
