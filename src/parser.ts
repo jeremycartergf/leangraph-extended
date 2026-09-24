@@ -1716,6 +1716,11 @@ export class Parser {
     // Validate: same variable cannot be used as both node and relationship
     this.validateNoNodeRelationshipVariableConflict(patterns, pathExpressions);
 
+    // Neo4j planner hints (USING INDEX / USING SCAN / USING JOIN ON ...).
+    // They may only appear directly after a MATCH / OPTIONAL MATCH pattern,
+    // before WHERE. They never affect results, so we parse and discard them.
+    this.parseUsingHints();
+
     let where: WhereCondition | undefined;
     if (this.checkKeyword('WHERE')) {
       this.advance();
@@ -1728,6 +1733,91 @@ export class Parser {
       pathExpressions: pathExpressions.length > 0 ? pathExpressions : undefined,
       where,
     };
+  }
+
+  /**
+   * True when the current token is the (non-reserved) word `word`, in any
+   * casing. `USING`, `SEEK`, `SCAN`, `JOIN`, `RANGE`, `TEXT` and `POINT` are
+   * not keywords in Cypher, so they tokenize as identifiers.
+   */
+  private checkWord(word: string): boolean {
+    const token = this.peek();
+    return (
+      (token.type === 'IDENTIFIER' || token.type === 'KEYWORD') &&
+      token.value.toUpperCase() === word
+    );
+  }
+
+  /**
+   * Parse zero or more Neo4j planner hints following a MATCH pattern:
+   *
+   *   USING INDEX [SEEK] var:Label(prop[, prop...])
+   *   USING (RANGE|TEXT|POINT) INDEX [SEEK] var:Label(prop[, prop...])
+   *   USING SCAN var:Label
+   *   USING JOIN ON var[, var...]
+   *
+   * Hints are planner directives with no effect on results, so nothing is
+   * returned: the tokens are validated and consumed.
+   */
+  private parseUsingHints(): void {
+    while (this.checkWord('USING')) {
+      this.advance(); // USING
+
+      if (this.checkWord('JOIN')) {
+        this.advance();
+        this.expect('KEYWORD', 'ON');
+        this.expectIdentifierOrKeyword(); // first join variable
+        while (this.check('COMMA')) {
+          this.advance();
+          this.expectIdentifierOrKeyword();
+        }
+        continue;
+      }
+
+      if (this.checkWord('SCAN')) {
+        this.advance();
+        this.parseHintVariableWithLabel();
+        continue;
+      }
+
+      // Optional index type qualifier: RANGE | TEXT | POINT
+      if (
+        this.checkWord('RANGE') ||
+        this.checkWord('TEXT') ||
+        this.checkWord('POINT')
+      ) {
+        this.advance();
+      }
+
+      if (this.checkWord('INDEX')) {
+        this.advance();
+        if (this.checkWord('SEEK')) {
+          this.advance();
+        }
+        this.parseHintVariableWithLabel();
+        // Property list is required for index hints: (prop[, prop...])
+        this.expect('LPAREN');
+        this.expectIdentifierOrKeyword();
+        while (this.check('COMMA')) {
+          this.advance();
+          this.expectIdentifierOrKeyword();
+        }
+        this.expect('RPAREN');
+        continue;
+      }
+
+      const token = this.peek();
+      throw new Error(
+        `Invalid USING hint: expected INDEX, SCAN or JOIN, got ${token.type} '${token.value}'`,
+      );
+    }
+  }
+
+  /** Parse `var:Label` (or `var:REL_TYPE`) as used by index and scan hints. */
+  private parseHintVariableWithLabel(): void {
+    this.expectIdentifierOrKeyword(); // variable
+    this.expect('COLON');
+    this.expectIdentifierOrKeyword(); // label or relationship type
   }
 
   /**
