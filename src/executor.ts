@@ -2441,29 +2441,140 @@ export class Executor {
    * Check if an expression contains aggregate functions
    */
   private expressionHasAggregate(expr: Expression): boolean {
-    if (expr.type === 'function') {
-      const funcName = expr.functionName?.toUpperCase();
-      if (
-        ['COLLECT', 'COUNT', 'SUM', 'AVG', 'MIN', 'MAX'].includes(
-          funcName || '',
-        )
-      ) {
-        return true;
-      }
-      // Check args recursively
-      if (expr.args) {
-        return expr.args.some((arg) => this.expressionHasAggregate(arg));
-      }
-    } else if (expr.type === 'binary') {
-      const leftHas = expr.left
-        ? this.expressionHasAggregate(expr.left)
-        : false;
-      const rightHas = expr.right
-        ? this.expressionHasAggregate(expr.right)
-        : false;
-      return leftHas || rightHas;
+    if (this.isAggregateFunctionNode(expr)) return true;
+    return this.getChildExpressions(expr).some((child) =>
+      this.expressionHasAggregate(child),
+    );
+  }
+
+  /**
+   * True when the node itself is an aggregate function call
+   * (collect / count / sum / avg / min / max), ignoring anything nested
+   * inside it.
+   */
+  private isAggregateFunctionNode(expr: Expression): boolean {
+    return (
+      expr.type === 'function' &&
+      ['COLLECT', 'COUNT', 'SUM', 'AVG', 'MIN', 'MAX'].includes(
+        expr.functionName?.toUpperCase() || '',
+      )
+    );
+  }
+
+  /**
+   * Every direct child Expression of a node, whatever its type
+   * (function args, binary/comparison operands, CASE branches, list
+   * elements, map values, property/index access targets, ...).
+   * WhereCondition children (CASE WHEN conditions, comprehension filters)
+   * are not Expressions and are not included.
+   */
+  private getChildExpressions(expr: Expression): Expression[] {
+    const children: Expression[] = [];
+    const push = (child?: Expression) => {
+      if (child) children.push(child);
+    };
+    expr.args?.forEach(push);
+    push(expr.left);
+    push(expr.right);
+    push(expr.operand);
+    push(expr.expression);
+    expr.whens?.forEach((w) => push(w.result));
+    push(expr.elseExpr);
+    push(expr.object);
+    push(expr.array);
+    push(expr.index);
+    push(expr.list);
+    push(expr.listExpr);
+    push(expr.mapExpr);
+    push(expr.initialValue);
+    push(expr.reduceExpr);
+    push(expr.projectionSource);
+    push(expr.pattern);
+    expr.elements?.forEach(push);
+    expr.properties?.forEach((p) => push(p.value));
+    expr.projectionItems?.forEach((item) => push(item.value));
+    return children;
+  }
+
+  /**
+   * Shallow-copy a node with every direct child Expression replaced by
+   * fn(child). Mirrors getChildExpressions.
+   */
+  private mapChildExpressions(
+    expr: Expression,
+    fn: (child: Expression) => Expression,
+  ): Expression {
+    const out: Expression = { ...expr };
+    if (expr.args) out.args = expr.args.map(fn);
+    if (expr.left) out.left = fn(expr.left);
+    if (expr.right) out.right = fn(expr.right);
+    if (expr.operand) out.operand = fn(expr.operand);
+    if (expr.expression) out.expression = fn(expr.expression);
+    if (expr.whens) {
+      out.whens = expr.whens.map((w) => ({ ...w, result: fn(w.result) }));
     }
-    return false;
+    if (expr.elseExpr) out.elseExpr = fn(expr.elseExpr);
+    if (expr.object) out.object = fn(expr.object);
+    if (expr.array) out.array = fn(expr.array);
+    if (expr.index) out.index = fn(expr.index);
+    if (expr.list) out.list = fn(expr.list);
+    if (expr.listExpr) out.listExpr = fn(expr.listExpr);
+    if (expr.mapExpr) out.mapExpr = fn(expr.mapExpr);
+    if (expr.initialValue) out.initialValue = fn(expr.initialValue);
+    if (expr.reduceExpr) out.reduceExpr = fn(expr.reduceExpr);
+    if (expr.projectionSource) {
+      out.projectionSource = fn(expr.projectionSource);
+    }
+    if (expr.pattern) out.pattern = fn(expr.pattern);
+    if (expr.elements) out.elements = expr.elements.map(fn);
+    if (expr.properties) {
+      out.properties = expr.properties.map((p) => ({
+        ...p,
+        value: fn(p.value),
+      }));
+    }
+    if (expr.projectionItems) {
+      out.projectionItems = expr.projectionItems.map((item) =>
+        item.value ? { ...item, value: fn(item.value) } : item,
+      );
+    }
+    return out;
+  }
+
+  /**
+   * Evaluate an expression that CONTAINS aggregates but is not itself an
+   * aggregate call - e.g. collect(k)[0], size(collect(k)), head(collect(k.id)),
+   * collect(k)[0..1], collect(k)[0].id, CASE count(k) WHEN 0 ... - over one
+   * group of rows.
+   *
+   * Each innermost aggregate call is computed once over the whole group and
+   * bound to a synthetic variable in a row copied from the group's first row;
+   * the enclosing expression is then evaluated with the ordinary per-row
+   * evaluator against that row, so every list/scalar function it already
+   * supports works unchanged.
+   */
+  private evaluateExpressionWithAggregatesOverGroup(
+    expr: Expression,
+    rows: Array<Map<string, unknown>>,
+    params: Record<string, unknown>,
+  ): unknown {
+    const syntheticRow = new Map<string, unknown>(
+      rows.length > 0 ? rows[0] : [],
+    );
+    let counter = 0;
+    const rewrite = (node: Expression): Expression => {
+      if (this.isAggregateFunctionNode(node)) {
+        const name = '__agg_' + counter++ + '__';
+        syntheticRow.set(
+          name,
+          this.evaluateAggregateExpression(node, rows, params),
+        );
+        return { type: 'variable', variable: name };
+      }
+      if (!this.expressionHasAggregate(node)) return node;
+      return this.mapChildExpressions(node, rewrite);
+    };
+    return this.evaluateExpressionInRow(rewrite(expr), syntheticRow, params);
   }
 
   /**
@@ -5858,6 +5969,44 @@ export class Executor {
         return list[normalizedIndex] ?? null;
       }
 
+      case 'SLICE':
+      case 'SLICE_FROM_START':
+      case 'SLICE_TO_END': {
+        // List slicing: list[start..end], list[..end], list[start..]
+        // Start is inclusive, end exclusive, negative bounds count from the
+        // end, and an explicit bound that evaluates to null yields null
+        // (matching the SQL translator's semantics).
+        if (args.length < 2) return null;
+        const list = this.deepParseJson(
+          this.evaluateExpressionInRow(args[0], row, params),
+        );
+        if (!Array.isArray(list)) return null;
+        const sliceKind = expr.functionName?.toUpperCase();
+        const bound = (i: number) =>
+          this.evaluateExpressionInRow(args[i], row, params);
+        let start: unknown = 0;
+        let end: unknown = list.length;
+        if (sliceKind === 'SLICE') {
+          start = bound(1);
+          end = bound(2);
+        } else if (sliceKind === 'SLICE_FROM_START') {
+          end = bound(1);
+        } else {
+          start = bound(1);
+        }
+        if (
+          start === null ||
+          start === undefined ||
+          end === null ||
+          end === undefined
+        ) {
+          return null;
+        }
+        const normalize = (i: number) =>
+          Math.max(0, Math.min(list.length, i < 0 ? list.length + i : i));
+        return list.slice(normalize(Number(start)), normalize(Number(end)));
+      }
+
       case 'ID': {
         if (args.length === 0) return null;
         const nodeVal = this.evaluateExpressionInRow(args[0], row, params);
@@ -6625,7 +6774,13 @@ export class Executor {
       }
     }
 
-    if (expr.type !== 'function') return null;
+    if (!this.isAggregateFunctionNode(expr)) {
+      return this.evaluateExpressionWithAggregatesOverGroup(
+        expr,
+        rows,
+        params,
+      );
+    }
 
     const funcName = expr.functionName?.toUpperCase();
     const args = expr.args || [];
@@ -6759,20 +6914,8 @@ export class Executor {
         return maxValue;
       }
 
-      default: {
-        // Handle scalar function wrappers around aggregates, e.g.
-        // apoc.text.join(reverse(collect(x)), ",")
-        const baseRow = rows.length > 0 ? rows[0] : new Map<string, unknown>();
-        const resolvedArgs = args.map((arg) =>
-          this.expressionHasAggregate(arg)
-            ? this.evaluateAggregateExpression(arg, rows, params)
-            : this.evaluateExpressionInRow(arg, baseRow, params),
-        );
-        return this.evaluateScalarFunctionFromValues(
-          funcName || '',
-          resolvedArgs,
-        );
-      }
+      default:
+        return null;
     }
   }
 

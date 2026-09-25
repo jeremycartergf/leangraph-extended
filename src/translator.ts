@@ -21100,6 +21100,33 @@ FROM __bin_l, __bin_r)`,
         : false;
       return leftHasAggregate || rightHasAggregate;
     }
+    // Property / index access on an aggregate result, e.g. collect(k)[0].id
+    if (expr.type === 'propertyAccess' && expr.object) {
+      return this.isAggregateExpression(expr.object);
+    }
+    if (expr.type === 'indexAccess') {
+      return (
+        (expr.array ? this.isAggregateExpression(expr.array) : false) ||
+        (expr.index ? this.isAggregateExpression(expr.index) : false)
+      );
+    }
+    if (expr.type === 'unary' && expr.operand) {
+      return this.isAggregateExpression(expr.operand);
+    }
+    if (expr.type === 'case') {
+      return (
+        (expr.expression
+          ? this.isAggregateExpression(expr.expression)
+          : false) ||
+        (expr.whens ?? []).some((w) =>
+          this.isAggregateExpression(w.result),
+        ) ||
+        (expr.elseExpr ? this.isAggregateExpression(expr.elseExpr) : false)
+      );
+    }
+    if (expr.type === 'list' && expr.elements) {
+      return expr.elements.some((e) => this.isAggregateExpression(e));
+    }
     return false;
   }
 

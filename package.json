@@ -1,6 +1,6 @@
 {
   "name": "leangraph-extended",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "SQLite-based graph database with Cypher query support with some APOC extensions",
   "type": "commonjs",
   "main": "dist/index.js",
