@@ -50,7 +50,8 @@ const failingTests: FailingTest[] = [];
 for (const feature of allFeatures) {
   // Match the test key format used in tck.test.ts
   // e.g., "clauses/match > Match8 - Match clause interoperation with other clauses|2"
-  const featurePath = feature.file.replace(TCK_PATH + "/", "").replace(".feature", "");
+  // Normalise to "/" so keys match on Windows (feature.file uses platform separators)
+  const featurePath = path.relative(TCK_PATH, feature.file).split(path.sep).join("/").replace(".feature", "");
   const pathParts = featurePath.split("/");
   // Category is first two parts: "clauses/match", "expressions/list", etc.
   const category = pathParts.slice(0, 2).join("/");

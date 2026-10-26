@@ -17,6 +17,8 @@
 import * as path from "path";
 import { GraphDatabase } from "../../src/db";
 import { Executor } from "../../src/executor";
+import { parse } from "../../src/parser";
+import { Translator } from "../../src/translator";
 import { parseAllFeatures, TCKScenario } from "./tck-parser";
 import { FAILING_TESTS } from "./failing-tests";
 import { QUERY_OVERRIDES } from "./query-overrides";
@@ -66,7 +68,8 @@ for (const feature of allFeatures) {
   for (const scenario of feature.scenarios) {
     // Build test key like "clauses/return > Return6 - Implicit grouping|11"
     // For expanded outline scenarios, include example index: "|11:1", "|11:2", etc.
-    const featurePath = feature.file.replace(TCK_PATH + "/", "").replace(".feature", "");
+    // Normalise to "/" so keys match on Windows (feature.file uses platform separators)
+    const featurePath = path.relative(TCK_PATH, feature.file).split(path.sep).join("/").replace(".feature", "");
     // Use category (e.g., "expressions/comparison") not full path (e.g., "expressions/comparison/Comparison1")
     // This matches the format used in tck.test.ts and QUERY_OVERRIDES
     const category = path.dirname(featurePath);
@@ -185,8 +188,6 @@ for (const { scenario, testKey } of matches) {
     // Show SQL if requested
     if (showSql) {
       try {
-        const { parse } = await import("../../src/parser");
-        const { Translator } = await import("../../src/translator");
         const parsed = parse(query);
         if (parsed.success) {
           const translator = new Translator({});

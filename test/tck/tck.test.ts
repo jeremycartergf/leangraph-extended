@@ -108,7 +108,8 @@ function runScenario(scenario: TCKScenario, db: GraphDatabase, executor: Executo
 // Group scenarios by category for organized testing
 const featuresByCategory = new Map<string, ParsedFeature[]>();
 for (const feature of allFeatures) {
-  const category = path.dirname(feature.file).split("/").slice(-2).join("/");
+  // feature.file uses platform separators (backslashes on Windows)
+  const category = path.dirname(feature.file).split(/[\\/]/).slice(-2).join("/");
   if (!featuresByCategory.has(category)) {
     featuresByCategory.set(category, []);
   }

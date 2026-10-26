@@ -9,15 +9,12 @@ The TCK feature files are not included in the repository and must be downloaded 
 ### Download TCK Files
 
 ```bash
-# Navigate to this directory
-cd test/tck
-
-# Clone with sparse checkout (downloads only what's needed)
-git clone --depth 1 --filter=blob:none --sparse https://github.com/opencypher/openCypher.git
-
-# Check out only the TCK features
-cd openCypher && git sparse-checkout set tck/features
+npm run tck:setup
 ```
+
+This sparse-checks-out only `tck/features` into `test/tck/openCypher/` (gitignored), pinned
+to the openCypher commit the baseline was checked against. Re-running it is safe; set
+`TCK_COMMIT=<sha>` to try a different commit.
 
 After setup, the directory structure should be:
 
