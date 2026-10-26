@@ -1,12 +1,12 @@
-# LeanGraph
+# LeanGraph Extended Edition
 
-[![npm version](https://img.shields.io/npm/v/leangraph.svg)](https://www.npmjs.com/package/leangraph)
+[![npm version](https://img.shields.io/npm/v/leangraph-extended.svg)](https://www.npmjs.com/package/leangraph-extended)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TCK](https://img.shields.io/badge/openCypher_TCK-100%25-brightgreen.svg)](https://opencypher.org/)
 
 A lightweight, embeddable graph database with **full Cypher query support**, powered by SQLite.
 
-Extended edition includes APOC functions.
+**Extended edition includes APOC functions.**
 
 > **100% openCypher TCK Compliance** — LeanGraph passes all 2,684 test scenarios from the openCypher Technology Compatibility Kit (Neo4j 3.5 baseline). Every Cypher feature that Neo4j 3.5 supports, LeanGraph supports.
 
@@ -33,7 +33,7 @@ LeanGraph is ideal for:
 ## Installation
 
 ```bash
-npm install leangraph
+npm install leangraph-extended
 npm install -D better-sqlite3
 ```
 
@@ -42,7 +42,7 @@ npm install -D better-sqlite3
 ## Quick Start
 
 ```typescript
-import { LeanGraph } from "leangraph";
+import { LeanGraph } from "leangraph-extended";
 
 const db = await LeanGraph({ project: "myapp" });
 
