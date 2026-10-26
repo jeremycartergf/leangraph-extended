@@ -3227,6 +3227,34 @@ export class Executor {
   }
 
   /**
+   * All properties of a node / edge / map value, for the n {.*} projection.
+   * Accepts the same shapes as extractNodeId; the hidden _nf_id is dropped.
+   */
+  private allPropertiesOf(value: unknown): Record<string, unknown> {
+    let props: unknown = value;
+    if (typeof value === 'string') {
+      try {
+        props = JSON.parse(value);
+      } catch {
+        // Not JSON - a raw node or edge id
+        const result =
+          this.db.execute('SELECT properties FROM nodes WHERE id = ?', [
+            value,
+          ]).rows[0] ??
+          this.db.execute('SELECT properties FROM edges WHERE id = ?', [
+            value,
+          ]).rows[0];
+        props = result ? JSON.parse(result.properties as string) : {};
+      }
+    }
+    if (typeof props !== 'object' || props === null || Array.isArray(props)) {
+      return {};
+    }
+    const { _nf_id: _ignored, ...rest } = props as Record<string, unknown>;
+    return rest;
+  }
+
+  /**
    * Execute CREATE for a relationship pattern within a row context
    */
   private executeCreateRelationshipInContext(
@@ -5456,6 +5484,50 @@ export class Executor {
             row,
             params,
           );
+        }
+        return result;
+      }
+
+      case 'mapProjection': {
+        // Evaluate map projection like n {.id, .*, key: expr}. A null source
+        // projects to null, and explicit items override .* regardless of order.
+        const source = expr.projectionSource!;
+        const sourceValue = this.evaluateExpressionInRow(source, row, params);
+        if (sourceValue === null || sourceValue === undefined) return null;
+
+        const items = expr.projectionItems || [];
+        const result: Record<string, unknown> = items.some(
+          (item) => item.type === 'allProperties',
+        )
+          ? this.allPropertiesOf(sourceValue)
+          : {};
+        for (const item of items) {
+          if (item.type === 'property') {
+            // Reuse property access so node ids / JSON strings resolve the same way
+            const propertyExpr: Expression =
+              source.type === 'variable'
+                ? {
+                    type: 'property',
+                    variable: source.variable,
+                    property: item.property,
+                  }
+                : {
+                    type: 'propertyAccess',
+                    object: source,
+                    property: item.property,
+                  };
+            result[item.property!] = this.evaluateExpressionInRow(
+              propertyExpr,
+              row,
+              params,
+            );
+          } else if (item.type === 'literal') {
+            result[item.key!] = this.evaluateExpressionInRow(
+              item.value!,
+              row,
+              params,
+            );
+          }
         }
         return result;
       }

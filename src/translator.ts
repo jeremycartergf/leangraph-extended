@@ -1871,13 +1871,21 @@ export class Translator {
 
     // Pre-compute whether we'll need a WITH subquery BEFORE building SELECT parts.
     // This is needed so translateExpression can reference UNWIND variables correctly.
-    // When RETURN has only aggregates and WITH has LIMIT/SKIP/DISTINCT, we wrap
-    // the FROM in a subquery, and UNWIND variables need different column references.
+    // When RETURN aggregates and WITH has LIMIT/SKIP/DISTINCT, those must apply to
+    // the rows before aggregation (including with grouping keys, e.g.
+    // WITH DISTINCT h RETURN h.id, count(*)), so we wrap the FROM in a subquery,
+    // and UNWIND variables need different column references.
+    // A WITH that aggregates itself keeps the previous aggregates-only behaviour.
     const returnOnlyAggregatesPreCheck = clause.items.every((item) =>
       this.isAggregateExpression(item.expression),
     );
+    const lastWithHasAggregatesPreCheck =
+      this.ctx.withClauses?.[this.ctx.withClauses.length - 1]?.items.some(
+        (item) => this.isAggregateExpression(item.expression),
+      ) ?? false;
     const needsWithSubqueryPreCheck =
-      returnOnlyAggregatesPreCheck &&
+      hasAggregation &&
+      (returnOnlyAggregatesPreCheck || !lastWithHasAggregatesPreCheck) &&
       (withLimit !== undefined || withSkip !== undefined || withDistinct);
 
     // Build mapping of UNWIND variables to subquery column names if needed
@@ -3753,21 +3761,16 @@ export class Translator {
       (p) => p.optional && p.targetHasLabel && p.edgeIsNew,
     );
 
-    // Check if we need a subquery for WITH LIMIT/SKIP/DISTINCT when RETURN is pure aggregation.
+    // Check if we need a subquery for WITH LIMIT/SKIP/DISTINCT when RETURN aggregates.
     // When RETURN count(*) follows WITH n LIMIT 2, the LIMIT should apply to rows before
     // aggregation, not to the aggregated result. We achieve this by wrapping the FROM in
-    // a subquery that applies the LIMIT/DISTINCT.
-    const returnOnlyAggregates = clause.items.every((item) =>
-      this.isAggregateExpression(item.expression),
-    );
-    const needsWithSubquery =
-      returnOnlyAggregates &&
-      (withLimit !== undefined || withSkip !== undefined || withDistinct);
+    // a subquery that applies the LIMIT/DISTINCT (see needsWithSubqueryPreCheck).
+    const needsWithSubquery = needsWithSubqueryPreCheck;
 
     // Build final SQL
     // Apply DISTINCT from either the RETURN clause, preceding WITH, or OPTIONAL MATCH pattern
     // BUT: if we're using a subquery for DISTINCT, don't add DISTINCT to the outer query
-    const needsSubqueryDistinct = returnOnlyAggregates && withDistinct;
+    const needsSubqueryDistinct = needsWithSubquery && withDistinct;
     const distinctKeyword =
       clause.distinct ||
       (withDistinct && !needsSubqueryDistinct) ||
@@ -3810,15 +3813,21 @@ export class Translator {
         }
       }
 
-      // If we have UNWIND variables or DISTINCT with non-variable expressions, build explicit SELECT
-      const needsExplicitSelect =
-        needsSubqueryDistinct || unwindVarsInWith.size > 0;
+      // Node/edge variables are projected by id and joined back under their
+      // original alias, so outer references (n0.id, n0.properties) still resolve.
+      // A SELECT * subquery would hide them behind ambiguous column names.
+      const rejoins = new Map<string, string>(); // table alias -> join SQL
+      const addRejoin = (varInfo: { type: string; alias: string }, column: string) => {
+        if (varInfo.type !== 'node' && varInfo.type !== 'edge') return;
+        if (varInfo.alias.startsWith('unwind') || rejoins.has(varInfo.alias)) return;
+        const table = varInfo.type === 'node' ? 'nodes' : 'edges';
+        rejoins.set(
+          varInfo.alias,
+          `LEFT JOIN ${table} ${varInfo.alias} ON ${varInfo.alias}.id = __with_subquery__."${column}"`,
+        );
+      };
 
-      if (
-        needsExplicitSelect &&
-        this.ctx.withClauses &&
-        this.ctx.withClauses.length > 0
-      ) {
+      if (this.ctx.withClauses && this.ctx.withClauses.length > 0) {
         const lastWithClause =
           this.ctx.withClauses[this.ctx.withClauses.length - 1];
         const withSelectParts: string[] = [];
@@ -3838,6 +3847,7 @@ export class Translator {
                 if (!projectedNames.has(varName)) {
                   withSelectParts.push(`${varInfo.alias}.id AS "${varName}"`);
                   projectedNames.add(varName);
+                  addRejoin(varInfo, varName);
                 }
               }
             }
@@ -3869,6 +3879,7 @@ export class Translator {
                 if (!projectedNames.has(outName)) {
                   withSelectParts.push(`${varInfo.alias}.id AS "${outName}"`);
                   projectedNames.add(outName);
+                  addRejoin(varInfo, outName);
                 }
               }
             }
@@ -3954,6 +3965,9 @@ export class Translator {
       }
 
       sql += ` FROM (${innerSql}) __with_subquery__`;
+      if (rejoins.size > 0) {
+        sql += ` ${[...rejoins.values()].join(' ')}`;
+      }
       // Clear these since they've been applied in subquery
       whereParts.length = 0;
       joinParts.length = 0;
@@ -4049,12 +4063,12 @@ export class Translator {
     }
 
     // Determine effective LIMIT/SKIP (combine WITH and RETURN values)
-    // BUT: when RETURN has only aggregates and no grouping, WITH LIMIT/SKIP should apply
-    // to the inner query (before aggregation), not the outer result.
+    // BUT: when RETURN aggregates, WITH LIMIT/SKIP should apply to the inner
+    // query (before aggregation), not the outer result.
     // We handle this by detecting if the WITH modifier should have been applied via subquery.
     const withLimitAppliedViaSubquery =
-      returnHasAggregates &&
-      nonAggregateItems.length === 0 &&
+      needsWithSubquery &&
+      fromParts.length > 0 &&
       (withLimit !== undefined || withSkip !== undefined);
 
     // If WITH LIMIT was applied via subquery, don't re-apply it here
@@ -14438,39 +14452,48 @@ SELECT COALESCE(json_group_array(CAST(n AS INTEGER)), json_array()) FROM r)`,
       }
 
       case 'mapProjection': {
-        // Map projection: p {.name, .age} or p {.name, key: expr}
-        // This creates a new JSON object with selected properties from the source
+        // Map projection: p {.name, .age}, p {.name, key: expr} or p {.*}
+        // This creates a new JSON object with selected properties from the source.
+        // A NULL source (e.g. unmatched OPTIONAL MATCH) projects to NULL, not a
+        // map of nulls, and explicit items override .* regardless of order (Neo4j).
         const sourceResult = this.translateExpression(expr.projectionSource!);
         tables.push(...sourceResult.tables);
-        params.push(...sourceResult.params);
+        // The source SQL is repeated, so push its params once per use, in SQL order
+        const useSource = (): string => {
+          params.push(...sourceResult.params);
+          return sourceResult.sql;
+        };
 
         const items = expr.projectionItems || [];
-        const jsonParts: string[] = [];
+        const nullGuard = `${useSource()} IS NULL`;
+        // .* - all properties of the source, minus the hidden node/edge identity
+        const base = items.some((item) => item.type === 'allProperties')
+          ? `json_remove(${useSource()}, '$._nf_id')`
+          : 'json_object()';
+        const setParts: string[] = [];
 
         for (const item of items) {
           if (item.type === 'property') {
             // .property shorthand - extract property from source
-            const key = item.property!;
-            jsonParts.push(
-              `'${escSqlStr(key)}', json_extract(${
-                sourceResult.sql
-              }, '$.${escSqlStr(key)}')`,
+            const key = escSqlStr(item.property!);
+            setParts.push(
+              `'$.${key}', json_extract(${useSource()}, '$.${key}')`,
             );
           } else if (item.type === 'literal') {
             // key: value syntax
-            const key = item.key!;
             const valueResult = this.translateExpression(item.value!);
             tables.push(...valueResult.tables);
             params.push(...valueResult.params);
-            jsonParts.push(`'${escSqlStr(key)}', ${valueResult.sql}`);
-          } else if (item.type === 'allProperties') {
-            // .* - project all properties (not yet fully supported, just returns the source)
-            // TODO: implement proper .* support
+            setParts.push(`'$.${escSqlStr(item.key!)}', ${valueResult.sql}`);
           }
         }
 
+        const projected =
+          setParts.length > 0
+            ? `json_set(${base}, ${setParts.join(', ')})`
+            : base;
         return {
-          sql: `json_object(${jsonParts.join(', ')})`,
+          sql: `CASE WHEN ${nullGuard} THEN NULL ELSE ${projected} END`,
           tables,
           params,
         };
