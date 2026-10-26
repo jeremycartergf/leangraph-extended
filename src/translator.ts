@@ -2028,7 +2028,9 @@ export class Translator {
 
       const alias = this.getReturnItemName(item);
       returnAliasExpressions.set(alias, item.expression);
-      selectParts.push(`${exprSql} AS ${this.quoteAlias(alias)}`);
+      selectParts.push(
+        `${this.numericJsonOutput(item.expression, exprSql)} AS ${this.quoteAlias(alias)}`,
+      );
       returnColumns.push(alias);
     }
 
@@ -7686,6 +7688,40 @@ export class Translator {
         return sql;
       }
     }
+  }
+
+  /**
+   * Property reads (`alias.properties -> '$.prop'`) and list indexing
+   * (`(list) -> '$[i]'`) yield JSON text, so a number reaches the executor as
+   * '30' or '1.0', and deepParseJson deliberately leaves bare numeric text alone
+   * (genuine string results like '2023' must stay strings). For an output column
+   * that is exactly such a read, emit numbers as SQL numbers; everything else
+   * keeps the -> form so strings/booleans/maps decode as before.
+   */
+  private numericJsonOutput(expr: Expression, sql: string): string {
+    const match = sql.match(/^(\w+\.properties) -> ('\$\.[^']*')$/);
+    if (match) {
+      const [, props, path] = match;
+      return `CASE json_type(${props}, ${path}) WHEN 'integer' THEN json_extract(${props}, ${path}) WHEN 'real' THEN json_extract(${props}, ${path}) ELSE ${sql} END`;
+    }
+    // List index SQL carries params, so evaluate it once in a scalar subquery
+    if (this.isJsonTextRead(expr, sql)) {
+      return `(SELECT CASE json_type(__v) WHEN 'integer' THEN __v + 0 WHEN 'real' THEN __v + 0 ELSE __v END FROM (SELECT ${sql} AS __v))`;
+    }
+    return sql;
+  }
+
+  /**
+   * True when sql is a bare -> read (property access or list index), which
+   * always yields JSON text (or NULL) rather than a plain SQL value.
+   */
+  private isJsonTextRead(expr: Expression, sql: string): boolean {
+    return (
+      /^\w+\.properties -> '\$\.[^']*'$/.test(sql) ||
+      (expr.type === 'function' &&
+        expr.functionName === 'INDEX' &&
+        sql.includes(") -> ('$[' || "))
+    );
   }
 
   private translateExpression(expr: Expression): {
@@ -15142,18 +15178,21 @@ SELECT COALESCE(json_group_array(CAST(n AS INTEGER)), json_array()) FROM r)`,
     const rightIsStringLiteral =
       expr.right?.type === 'literal' && typeof expr.right.value === 'string';
 
-    // Helper for json_each that preserves boolean types (SQLite converts true/false to 1/0)
+    // Helper for json_each that yields each element as JSON text. json_each.value is a
+    // bare SQL value (true/false become 1/0) and JSON subtypes don't survive UNION ALL,
+    // so elements are re-parsed with json(value) inside json_group_array to keep their
+    // types (booleans, numbers vs strings, nested lists/maps).
     const jsonEachWithBooleans = (arrayExpr: string) =>
-      `SELECT CASE json_each.type WHEN 'true' THEN json('true') WHEN 'false' THEN json('false') ELSE json_each.value END as value FROM json_each(${arrayExpr})`;
+      `SELECT CASE json_each.type WHEN 'true' THEN 'true' WHEN 'false' THEN 'false' WHEN 'null' THEN 'null' WHEN 'object' THEN json_each.value WHEN 'array' THEN json_each.value ELSE json_quote(json_each.value) END as value FROM json_each(${arrayExpr})`;
 
     if (expr.operator === '+' && leftIsList && rightIsList) {
       // Both are lists: list + list concatenation
-      // Pattern: (SELECT json_group_array(value) FROM (SELECT value FROM json_each(left) UNION ALL SELECT value FROM json_each(right)))
+      // Pattern: (SELECT json_group_array(json(value)) FROM (SELECT value FROM json_each(left) UNION ALL SELECT value FROM json_each(right)))
       const leftArraySql = this.wrapForArray(expr.left!, leftResult.sql);
       const rightArraySql = this.wrapForArray(expr.right!, rightResult.sql);
 
       return {
-        sql: `(SELECT json_group_array(value) FROM (${jsonEachWithBooleans(
+        sql: `(SELECT json_group_array(json(value)) FROM (${jsonEachWithBooleans(
           leftArraySql,
         )} UNION ALL ${jsonEachWithBooleans(rightArraySql)}))`,
         tables,
@@ -15169,19 +15208,24 @@ SELECT COALESCE(json_group_array(CAST(n AS INTEGER)), json_array()) FROM r)`,
       // In Cypher, list + null returns null (not [list..., null]).
       const leftArraySql = this.wrapForArray(expr.left!, leftResult.sql);
       const rightScalarSql = rightResult.sql;
+      // A -> read is already JSON text (its subtype is lost through the CTE), so
+      // append it as-is; json_quote would turn '3' or '"abc"' into a JSON string
+      const rightElementSql = this.isJsonTextRead(expr.right!, rightScalarSql)
+        ? '__bin_r.r'
+        : 'json_quote(__bin_r.r)';
 
       return {
         sql: `(WITH __bin_l AS (SELECT ${leftArraySql} AS l), __bin_r AS (SELECT ${rightScalarSql} AS r)
 SELECT CASE
   WHEN __bin_r.r IS NULL THEN NULL
   WHEN json_valid(__bin_r.r) AND json_type(__bin_r.r) = 'array' THEN
-    (SELECT json_group_array(value) FROM (${jsonEachWithBooleans(
+    (SELECT json_group_array(json(value)) FROM (${jsonEachWithBooleans(
       '__bin_l.l',
     )} UNION ALL ${jsonEachWithBooleans('__bin_r.r')}))
   ELSE
-    (SELECT json_group_array(value) FROM (${jsonEachWithBooleans(
+    (SELECT json_group_array(json(value)) FROM (${jsonEachWithBooleans(
       '__bin_l.l',
-    )} UNION ALL SELECT json_quote(__bin_r.r)))
+    )} UNION ALL SELECT ${rightElementSql}))
 END
 FROM __bin_l, __bin_r)`,
         tables,
@@ -15243,7 +15287,7 @@ FROM __bin_l, __bin_r)`,
       const rightArraySql = this.wrapForArray(expr.right!, rightResult.sql);
 
       return {
-        sql: `(SELECT json_group_array(value) FROM (SELECT value FROM json_each(${leftPropSql}) UNION ALL SELECT value FROM json_each(${rightArraySql})))`,
+        sql: `(SELECT json_group_array(json(value)) FROM (${jsonEachWithBooleans(leftPropSql)} UNION ALL ${jsonEachWithBooleans(rightArraySql)}))`,
         tables,
         params,
       };
@@ -15260,7 +15304,7 @@ FROM __bin_l, __bin_r)`,
       const rightPropSql = this.wrapForArray(expr.right!, rightResult.sql);
 
       return {
-        sql: `(SELECT json_group_array(value) FROM (SELECT value FROM json_each(${leftArraySql}) UNION ALL SELECT value FROM json_each(${rightPropSql})))`,
+        sql: `(SELECT json_group_array(json(value)) FROM (${jsonEachWithBooleans(leftArraySql)} UNION ALL ${jsonEachWithBooleans(rightPropSql)}))`,
         tables,
         params,
       };
@@ -15276,7 +15320,7 @@ FROM __bin_l, __bin_r)`,
 
       // Params order: leftScalarSql (IS NULL) -> leftScalarSql (json_quote) -> rightArraySql
       return {
-        sql: `(CASE WHEN ${leftScalarSql} IS NULL THEN NULL ELSE (SELECT json_group_array(value) FROM (SELECT json_quote(${leftScalarSql}) as value UNION ALL ${jsonEachWithBooleans(
+        sql: `(CASE WHEN ${leftScalarSql} IS NULL THEN NULL ELSE (SELECT json_group_array(json(value)) FROM (SELECT json_quote(${leftScalarSql}) as value UNION ALL ${jsonEachWithBooleans(
           rightArraySql,
         )})) END)`,
         tables,
@@ -15302,7 +15346,7 @@ FROM __bin_l, __bin_r)`,
       return {
         sql: `(CASE 
           WHEN json_type(${leftPropSql}) = 'array' AND json_type(${rightPropSql}) = 'array' THEN
-            (SELECT json_group_array(value) FROM (SELECT value FROM json_each(${leftPropSql}) UNION ALL SELECT value FROM json_each(${rightPropSql})))
+            (SELECT json_group_array(json(value)) FROM (${jsonEachWithBooleans(leftPropSql)} UNION ALL ${jsonEachWithBooleans(rightPropSql)}))
           ELSE (COALESCE(${leftPropSql}, 0) + COALESCE(${rightPropSql}, 0))
         END)`,
         tables,

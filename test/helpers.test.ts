@@ -88,7 +88,7 @@ describe("CLI Helpers", () => {
   describe("API Key functions", () => {
     describe("getApiKeysPath", () => {
       it("returns correct path", () => {
-        expect(getApiKeysPath("/data")).toBe("/data/api-keys.json");
+        expect(getApiKeysPath("/data")).toBe(path.join("/data", "api-keys.json"));
       });
     });
 
